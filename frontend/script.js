@@ -696,6 +696,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Tab: Kesesuaian Kode Wilayah
         renderWilayahConsistencyAudit(data.wilayah_consistency_audit);
 
+        // Tab: Pemeriksaan Unsur Peta
+        renderMapElementsAudit(data.map_elements_audit);
+
 
         // Tab 6: Coordinates
         const tbodySamples = document.getElementById('samples-tbody');
@@ -1446,9 +1449,20 @@ document.addEventListener('DOMContentLoaded', function() {
         wilayahAudit.items.forEach((item, index) => {
             const tr = document.createElement('tr');
             const isValid = item.is_valid;
-            const mismatchText = item.mismatch_type 
-                ? `<span style="background:#fee2e2; color:#991b1b; padding:4px 8px; border-radius:6px; font-weight:700; font-size:0.8rem; display:inline-block;">${item.mismatch_type}</span>` 
-                : '<span style="color:#16a34a; font-weight:700;"><i class="fa-solid fa-check"></i> Sesuai</span>';
+            
+            let mismatchBadge = '<span style="color:#16a34a; font-weight:700;"><i class="fa-solid fa-check"></i> Sesuai</span>';
+            if (item.mismatch_type) {
+                if (item.mismatch_type.includes("Perlu Verifikasi Manual")) {
+                    mismatchBadge = `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:4px 8px; border-radius:6px; font-weight:700; font-size:0.8rem; display:inline-block;"><i class="fa-solid fa-triangle-exclamation"></i> ${item.mismatch_type}</span>`;
+                } else {
+                    mismatchBadge = `<span style="background:#fee2e2; color:#991b1b; border:1px solid #fecaca; padding:4px 8px; border-radius:6px; font-weight:700; font-size:0.8rem; display:inline-block;"><i class="fa-solid fa-circle-xmark"></i> ${item.mismatch_type}</span>`;
+                }
+            }
+
+            let warningHTML = '';
+            if (item.context_warning) {
+                warningHTML = `<div style="margin-top:6px; background:#fffbeb; color:#b45309; border:1px solid #fef3c7; border-left:3px solid #d97706; padding:6px 10px; border-radius:6px; font-size:0.8rem; font-weight:600;"><i class="fa-solid fa-circle-exclamation"></i> <strong>Peringatan Konteks:</strong> ${item.context_warning}</div>`;
+            }
 
             tr.innerHTML = `
                 <td style="text-align:center; font-weight:700;">${index + 1}</td>
@@ -1456,11 +1470,79 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td><code style="color:#0056a3; font-weight:700; font-size:0.9rem;">${item.code_in_doc}</code></td>
                 <td><strong style="color:#1e293b;">${item.written_in_doc || '-'}</strong></td>
                 <td><strong style="color:#0f766e;">${item.expected_from_db || '-'}</strong></td>
-                <td>${mismatchText}</td>
-                <td style="font-size:0.85rem; color:#334155; line-height:1.4;">${item.recommendation || '-'}</td>
+                <td>${mismatchBadge}</td>
+                <td style="font-size:0.85rem; color:#334155; line-height:1.4;">
+                    <div>${item.recommendation || '-'}</div>
+                    ${warningHTML}
+                </td>
             `;
             if (!isValid) {
+                tr.style.background = '#fffdf5';
+            }
+            tbodyEl.appendChild(tr);
+        });
+    }
+
+    // ================================================================
+    // MAP ELEMENTS INSPECTION RENDERER (10 Unsur Peta)
+    // ================================================================
+    function renderMapElementsAudit(mapElementsAudit) {
+        const badgeEl = document.getElementById('map-elements-status-badge');
+        const tbodyEl = document.getElementById('map-elements-audit-tbody');
+        if (!badgeEl || !tbodyEl) return;
+
+        tbodyEl.innerHTML = '';
+        if (!mapElementsAudit || !mapElementsAudit.items || mapElementsAudit.items.length === 0) {
+            badgeEl.style.background = '#f1f5f9';
+            badgeEl.style.color = '#475569';
+            badgeEl.innerHTML = '<i class="fa-solid fa-circle-question"></i> Tidak Ada Data Unsur Peta';
+            tbodyEl.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#64748b; padding:20px;">Unggah dokumen peta untuk memulai pemeriksaan visual 10 unsur peta.</td></tr>';
+            return;
+        }
+
+        const isPass = (mapElementsAudit.status === 'Sesuai' || mapElementsAudit.status === 'PASS');
+        if (isPass) {
+            badgeEl.style.background = '#dcfce7';
+            badgeEl.style.color = '#15803d';
+            badgeEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> ✓ Unsur Peta Lengkap (${mapElementsAudit.unsur_ada}/${mapElementsAudit.total_unsur})`;
+        } else if (mapElementsAudit.status === 'Perlu Verifikasi') {
+            badgeEl.style.background = '#fef3c7';
+            badgeEl.style.color = '#b45309';
+            badgeEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Perlu Verifikasi (${mapElementsAudit.unsur_perlu_verifikasi} Unsur)`;
+        } else {
+            badgeEl.style.background = '#fee2e2';
+            badgeEl.style.color = '#b91c1c';
+            badgeEl.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ✗ Unsur Peta Tidak Lengkap (${mapElementsAudit.unsur_tidak_ada} Tidak Ada)`;
+        }
+
+        mapElementsAudit.items.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            
+            let statusBadge = '';
+            if (item.status === 'Ada' || item.status === 'Sesuai') {
+                statusBadge = `<span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:4px 10px; border-radius:6px; font-weight:700; font-size:0.8rem; display:inline-block;"><i class="fa-solid fa-check"></i> ${item.status}</span>`;
+            } else if (item.status === 'Perlu Verifikasi') {
+                statusBadge = `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:4px 10px; border-radius:6px; font-weight:700; font-size:0.8rem; display:inline-block;"><i class="fa-solid fa-triangle-exclamation"></i> ${item.status}</span>`;
+            } else {
+                statusBadge = `<span style="background:#fee2e2; color:#991b1b; border:1px solid #fecaca; padding:4px 10px; border-radius:6px; font-weight:700; font-size:0.8rem; display:inline-block;"><i class="fa-solid fa-xmark"></i> ${item.status}</span>`;
+            }
+
+            const confDisplay = `<span style="font-family:'JetBrains Mono',monospace; font-weight:700; color:#0056a3;">${item.confidence || 0}%</span>`;
+
+            tr.innerHTML = `
+                <td style="text-align:center; font-weight:700;">${index + 1}</td>
+                <td><strong style="color:#1e293b;">${item.nama_unsur}</strong></td>
+                <td style="text-align:center;">${statusBadge}</td>
+                <td style="text-align:center;">${confDisplay}</td>
+                <td><small style="color:#475569; font-weight:600;"><i class="fa-solid fa-gear"></i> ${item.metode || '-'}</small></td>
+                <td style="font-size:0.85rem; color:#334155;">${item.penjelasan || '-'}</td>
+                <td style="font-size:0.85rem; color:#0f766e; line-height:1.4;">${item.rekomendasi || '-'}</td>
+            `;
+
+            if (item.status === 'Tidak Ada' || item.status === 'Tidak Sesuai') {
                 tr.style.background = '#fff5f5';
+            } else if (item.status === 'Perlu Verifikasi') {
+                tr.style.background = '#fffdf5';
             }
             tbodyEl.appendChild(tr);
         });
@@ -1468,4 +1550,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
     loadAiModelsInfo();
 });
+
 

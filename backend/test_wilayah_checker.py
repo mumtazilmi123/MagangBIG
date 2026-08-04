@@ -43,13 +43,18 @@ class TestWilayahChecker(unittest.TestCase):
         self.assertEqual(details.get("kecamatan", {}).get("name"), "Blang Mangat")
         self.assertIn("Lhokseumawe", details.get("kabupaten", {}).get("name", ""))
 
-    def test_mismatch_detection_logic(self):
-        from modules.wilayah_checker import audit_wilayah_consistency
-        # Mock audit with mismatched data (11.73.03.2017 with wrong village name)
-        # We can test name similarity matching logic
+    def test_reverse_code_lookup(self):
+        from modules.wilayah_checker import find_code_by_written_names
+        # Case: Desa Alue Lim, Kec Blang Mangat, Kab Kota Lhokseumawe -> should find 11.73.03.2017
+        found_code = find_code_by_written_names(self.db, "Alue Lim", "Blang Mangat", "Kota Lhokseumawe")
+        self.assertEqual(found_code, "11.73.03.2017")
+
+    def test_majority_validation_logic(self):
+        # We test similarity and reverse lookup logic
         self.assertTrue(calculate_name_similarity("Alue Lim", "DESA ALUE LIM"))
         self.assertFalse(calculate_name_similarity("Blang Buloh", "Alue Lim"))
 
 
 if __name__ == "__main__":
     unittest.main()
+
