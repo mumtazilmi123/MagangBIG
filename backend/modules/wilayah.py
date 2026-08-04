@@ -71,17 +71,32 @@ class WilayahDatabase:
 
     def fetch_provinces_live(self) -> Dict[str, str]:
         """Ambil daftar seluruh Provinsi di Indonesia via API Internet."""
-        if self._cache_provinces is not None:
+        if self._cache_provinces:
             return self._cache_provinces
 
         result_map = {}
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
 
-        # 1. API Utama: https://api.kodewilayah.web.id/provinces
+        # 1. API Utama (ibnux - lebih cepat & stabil): https://ibnux.github.io/data-indonesia/provinsi.json
+        try:
+            url = "https://ibnux.github.io/data-indonesia/provinsi.json"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    for item in data:
+                        result_map[str(item['id'])] = str(item['nama'])
+                    if result_map:
+                        self._cache_provinces = result_map
+                        return result_map
+        except Exception:
+            pass
+
+        # 2. Fallback API: https://api.kodewilayah.web.id/provinces
         try:
             url = "https://api.kodewilayah.web.id/provinces"
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode('utf-8'))
                     items = data.get('data', []) if isinstance(data, dict) else data
@@ -94,57 +109,28 @@ class WilayahDatabase:
         except Exception:
             pass
 
-        # 2. Fallback API: https://ibnux.github.io/data-indonesia/provinsi.json
-        try:
-            url = "https://ibnux.github.io/data-indonesia/provinsi.json"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    for item in data:
-                        result_map[str(item['id'])] = str(item['nama'])
-                    if result_map:
-                        self._cache_provinces = result_map
-                        return result_map
-        except Exception:
-            pass
+        if result_map:
+            self._cache_provinces = result_map
+            return result_map
+        self._cache_provinces = dict(PROVINCE_CODES)
+        return self._cache_provinces
 
-        self._cache_provinces = result_map
-        return result_map
 
     def fetch_regencies_live(self, prov_code: str) -> Dict[str, str]:
         """Ambil daftar Kabupaten/Kota di bawah Provinsi via API Internet."""
         if not prov_code:
             return {}
-        if prov_code in self._cache_regencies:
+        if prov_code in self._cache_regencies and self._cache_regencies[prov_code]:
             return self._cache_regencies[prov_code]
 
         clean_prov = self.clean_code_string(prov_code)
         result_map = {}
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-        # 1. API Utama: https://api.kodewilayah.web.id/regencies/{clean_prov}
-        try:
-            url = f"https://api.kodewilayah.web.id/regencies/{clean_prov}"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    items = data.get('data', []) if isinstance(data, dict) else data
-                    for item in items:
-                        formatted = self.format_code_with_dots(str(item.get('code', '')))
-                        result_map[formatted] = str(item.get('name', ''))
-                    if result_map:
-                        self._cache_regencies[prov_code] = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        # 2. Fallback API: https://ibnux.github.io/data-indonesia/kabupaten/{clean_prov}.json
         try:
             url = f"https://ibnux.github.io/data-indonesia/kabupaten/{clean_prov}.json"
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode('utf-8'))
                     for item in data:
@@ -156,42 +142,25 @@ class WilayahDatabase:
         except Exception:
             pass
 
-        self._cache_regencies[prov_code] = result_map
+        if result_map:
+            self._cache_regencies[prov_code] = result_map
         return result_map
 
     def fetch_districts_live(self, kab_code: str) -> Dict[str, str]:
         """Ambil daftar Kecamatan di bawah Kabupaten/Kota via API Internet."""
         if not kab_code:
             return {}
-        if kab_code in self._cache_districts:
+        if kab_code in self._cache_districts and self._cache_districts[kab_code]:
             return self._cache_districts[kab_code]
 
         clean_kab = self.clean_code_string(kab_code)
         result_map = {}
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-        # 1. API Utama: https://api.kodewilayah.web.id/districts/{clean_kab}
-        try:
-            url = f"https://api.kodewilayah.web.id/districts/{clean_kab}"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    items = data.get('data', []) if isinstance(data, dict) else data
-                    for item in items:
-                        formatted = self.format_code_with_dots(str(item.get('code', '')))
-                        result_map[formatted] = str(item.get('name', ''))
-                    if result_map:
-                        self._cache_districts[kab_code] = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        # 2. Fallback API: https://ibnux.github.io/data-indonesia/kecamatan/{clean_kab}.json
         try:
             url = f"https://ibnux.github.io/data-indonesia/kecamatan/{clean_kab}.json"
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode('utf-8'))
                     for item in data:
@@ -203,25 +172,25 @@ class WilayahDatabase:
         except Exception:
             pass
 
-        self._cache_districts[kab_code] = result_map
+        if result_map:
+            self._cache_districts[kab_code] = result_map
         return result_map
 
     def fetch_villages_live(self, kec_code: str) -> Dict[str, str]:
         """Ambil daftar Desa/Kelurahan di bawah Kecamatan via API Internet."""
         if not kec_code:
             return {}
-        if kec_code in self._cache_villages:
+        if kec_code in self._cache_villages and self._cache_villages[kec_code]:
             return self._cache_villages[kec_code]
 
         clean_kec = self.clean_code_string(kec_code)
         result_map = {}
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-        # 1. API Utama (lebih stabil): https://ibnux.github.io/data-indonesia/kelurahan/{clean_kec}.json
         try:
             url = f"https://ibnux.github.io/data-indonesia/kelurahan/{clean_kec}.json"
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=4) as resp:
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode('utf-8'))
                     for item in data:
@@ -233,25 +202,11 @@ class WilayahDatabase:
         except Exception:
             pass
 
-        # 2. Fallback API: https://api.kodewilayah.web.id/villages/{clean_kec}
-        try:
-            url = f"https://api.kodewilayah.web.id/villages/{clean_kec}"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    items = data.get('data', []) if isinstance(data, dict) else data
-                    for item in items:
-                        formatted = self.format_code_with_dots(str(item.get('code', '')))
-                        result_map[formatted] = str(item.get('name', ''))
-                    if result_map:
-                        self._cache_villages[kec_code] = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        self._cache_villages[kec_code] = result_map
+        if result_map:
+            self._cache_villages[kec_code] = result_map
         return result_map
+
+
 
     def validate_hierarchy(self, raw_code: str) -> Dict[str, Any]:
         """

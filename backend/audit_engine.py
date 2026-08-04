@@ -22,361 +22,14 @@ import cv2
 import rapidfuzz
 import numpy as np
 from PIL import Image
+from modules.wilayah import WilayahDatabase
+from modules.wilayah_checker import audit_wilayah_consistency
 
 BASE_PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 VERIDOC_DIR = os.path.join(BASE_PROJECT_DIR, "Veridoc")
 os.makedirs(VERIDOC_DIR, exist_ok=True)
 
-class WilayahDatabase:
-    """
-    Modul Referensi Kode & Nama Wilayah Administrasi Indonesia (Kemendagri).
-    Pencarian dilakukan secara langsung dari API Internet Resmi/Live tanpa database statis manual.
-    
-    API Utama: https://api.kodewilayah.web.id/
-    API Cadangan: https://ibnux.github.io/data-indonesia/
-    """
-
-    def __init__(self):
-        self._cache_provinces: Optional[Dict[str, str]] = None
-        self._cache_regencies: Dict[str, Dict[str, str]] = {}
-        self._cache_districts: Dict[str, Dict[str, str]] = {}
-        self._cache_villages: Dict[str, Dict[str, str]] = {}
-
-    @staticmethod
-    def clean_code_string(raw_code: str) -> str:
-        if not raw_code:
-            return ""
-        return re.sub(r'[^0-9]', '', raw_code.strip())
-
-    @staticmethod
-    def format_code_with_dots(clean_digits: str) -> str:
-        d = clean_digits
-        length = len(d)
-        if length == 2:
-            return d
-        elif length == 4:
-            return f"{d[:2]}.{d[2:]}"
-        elif length == 6:
-            return f"{d[:2]}.{d[2:4]}.{d[4:]}"
-        elif length == 10:
-            return f"{d[:2]}.{d[2:4]}.{d[4:6]}.{d[6:]}"
-        return d
-
-    def parse_code_components(self, raw_code: str) -> Dict[str, Optional[str]]:
-        digits = self.clean_code_string(raw_code)
-        length = len(digits)
-
-        prov_code = digits[:2] if length >= 2 else None
-        kab_code = f"{digits[:2]}.{digits[2:4]}" if length >= 4 else None
-        kec_code = f"{digits[:2]}.{digits[2:4]}.{digits[4:6]}" if length >= 6 else None
-        desa_code = f"{digits[:2]}.{digits[2:4]}.{digits[4:6]}.{digits[6:10]}" if length >= 10 else None
-
-        return {
-            "digits": digits,
-            "length": length,
-            "formatted_code": self.format_code_with_dots(digits),
-            "prov_code": prov_code,
-            "kab_code": kab_code,
-            "kec_code": kec_code,
-            "desa_code": desa_code
-        }
-
-    def fetch_provinces_live(self) -> Dict[str, str]:
-        """Ambil daftar seluruh Provinsi di Indonesia via API Internet."""
-        if self._cache_provinces is not None:
-            return self._cache_provinces
-
-        result_map = {}
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-
-        # 1. API Utama: https://api.kodewilayah.web.id/provinces
-        try:
-            url = "https://api.kodewilayah.web.id/provinces"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    items = data.get('data', []) if isinstance(data, dict) else data
-                    for item in items:
-                        c_str = str(item.get('code', ''))
-                        result_map[c_str] = str(item.get('name', ''))
-                    if result_map:
-                        self._cache_provinces = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        # 2. Fallback API: https://ibnux.github.io/data-indonesia/provinsi.json
-        try:
-            url = "https://ibnux.github.io/data-indonesia/provinsi.json"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    for item in data:
-                        result_map[str(item['id'])] = str(item['nama'])
-                    if result_map:
-                        self._cache_provinces = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        self._cache_provinces = result_map
-        return result_map
-
-    def fetch_regencies_live(self, prov_code: str) -> Dict[str, str]:
-        """Ambil daftar Kabupaten/Kota di bawah Provinsi via API Internet."""
-        if not prov_code:
-            return {}
-        if prov_code in self._cache_regencies:
-            return self._cache_regencies[prov_code]
-
-        clean_prov = self.clean_code_string(prov_code)
-        result_map = {}
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-
-        # 1. API Utama: https://api.kodewilayah.web.id/regencies/{clean_prov}
-        try:
-            url = f"https://api.kodewilayah.web.id/regencies/{clean_prov}"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    items = data.get('data', []) if isinstance(data, dict) else data
-                    for item in items:
-                        formatted = self.format_code_with_dots(str(item.get('code', '')))
-                        result_map[formatted] = str(item.get('name', ''))
-                    if result_map:
-                        self._cache_regencies[prov_code] = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        # 2. Fallback API: https://ibnux.github.io/data-indonesia/kabupaten/{clean_prov}.json
-        try:
-            url = f"https://ibnux.github.io/data-indonesia/kabupaten/{clean_prov}.json"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    for item in data:
-                        formatted = self.format_code_with_dots(str(item['id']))
-                        result_map[formatted] = str(item['nama'])
-                    if result_map:
-                        self._cache_regencies[prov_code] = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        self._cache_regencies[prov_code] = result_map
-        return result_map
-
-    def fetch_districts_live(self, kab_code: str) -> Dict[str, str]:
-        """Ambil daftar Kecamatan di bawah Kabupaten/Kota via API Internet."""
-        if not kab_code:
-            return {}
-        if kab_code in self._cache_districts:
-            return self._cache_districts[kab_code]
-
-        clean_kab = self.clean_code_string(kab_code)
-        result_map = {}
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-
-        # 1. API Utama: https://api.kodewilayah.web.id/districts/{clean_kab}
-        try:
-            url = f"https://api.kodewilayah.web.id/districts/{clean_kab}"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    items = data.get('data', []) if isinstance(data, dict) else data
-                    for item in items:
-                        formatted = self.format_code_with_dots(str(item.get('code', '')))
-                        result_map[formatted] = str(item.get('name', ''))
-                    if result_map:
-                        self._cache_districts[kab_code] = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        # 2. Fallback API: https://ibnux.github.io/data-indonesia/kecamatan/{clean_kab}.json
-        try:
-            url = f"https://ibnux.github.io/data-indonesia/kecamatan/{clean_kab}.json"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    for item in data:
-                        formatted = self.format_code_with_dots(str(item['id']))
-                        result_map[formatted] = str(item['nama'])
-                    if result_map:
-                        self._cache_districts[kab_code] = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        self._cache_districts[kab_code] = result_map
-        return result_map
-
-    def fetch_villages_live(self, kec_code: str) -> Dict[str, str]:
-        """Ambil daftar Desa/Kelurahan di bawah Kecamatan via API Internet."""
-        if not kec_code:
-            return {}
-        if kec_code in self._cache_villages:
-            return self._cache_villages[kec_code]
-
-        clean_kec = self.clean_code_string(kec_code)
-        result_map = {}
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-
-        # 1. API Utama (lebih stabil): https://ibnux.github.io/data-indonesia/kelurahan/{clean_kec}.json
-        try:
-            url = f"https://ibnux.github.io/data-indonesia/kelurahan/{clean_kec}.json"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    for item in data:
-                        formatted = self.format_code_with_dots(str(item['id']))
-                        result_map[formatted] = str(item['nama'])
-                    if result_map:
-                        self._cache_villages[kec_code] = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        # 2. Fallback API: https://api.kodewilayah.web.id/villages/{clean_kec}
-        try:
-            url = f"https://api.kodewilayah.web.id/villages/{clean_kec}"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    items = data.get('data', []) if isinstance(data, dict) else data
-                    for item in items:
-                        formatted = self.format_code_with_dots(str(item.get('code', '')))
-                        result_map[formatted] = str(item.get('name', ''))
-                    if result_map:
-                        self._cache_villages[kec_code] = result_map
-                        return result_map
-        except Exception:
-            pass
-
-        self._cache_villages[kec_code] = result_map
-        return result_map
-
-    def validate_hierarchy(self, raw_code: str) -> Dict[str, Any]:
-        """
-        Memeriksa keberadaan kode dan kecocokan hirarki parent-child via Live API:
-        Provinsi -> Kabupaten/Kota -> Kecamatan -> Desa/Kelurahan
-        """
-        comp = self.parse_code_components(raw_code)
-        digits = comp["digits"]
-        length = comp["length"]
-        formatted = comp["formatted_code"]
-
-        result = {
-            "code": formatted,
-            "digits": digits,
-            "level": None,
-            "exists_in_db": False,
-            "hierarchy_valid": False,
-            "official_name": None,
-            "hierarchy_details": {},
-            "error_message": None
-        }
-
-        if length not in [2, 4, 6, 10]:
-            result["error_message"] = f"Format panjang kode wilayah tidak valid ({length} digit). Harus 2, 4, 6, atau 10 digit."
-            return result
-
-        # 1. Cek Provinsi
-        prov_code = comp["prov_code"]
-        provinces = self.fetch_provinces_live()
-        prov_name = provinces.get(prov_code)
-
-        if not prov_name:
-            result["error_message"] = f"Kode Provinsi '{prov_code}' tidak terdaftar pada data resmi Kemendagri."
-            return result
-
-        result["hierarchy_details"]["provinsi"] = {"code": prov_code, "name": prov_name, "valid": True}
-
-        if length == 2:
-            result["level"] = "Provinsi"
-            result["exists_in_db"] = True
-            result["hierarchy_valid"] = True
-            result["official_name"] = prov_name
-            return result
-
-        # 2. Cek Kabupaten / Kota
-        kab_code = comp["kab_code"]
-        regencies = self.fetch_regencies_live(prov_code)
-        kab_name = regencies.get(kab_code)
-
-        if not kab_name:
-            result["error_message"] = f"Kode Kabupaten/Kota '{kab_code}' tidak ditemukan di bawah Provinsi '{prov_name}' ({prov_code})."
-            return result
-
-        result["hierarchy_details"]["kabupaten"] = {"code": kab_code, "name": kab_name, "valid": True}
-
-        if length == 4:
-            result["level"] = "Kabupaten/Kota"
-            result["exists_in_db"] = True
-            result["hierarchy_valid"] = True
-            result["official_name"] = kab_name
-            return result
-
-        # 3. Cek Kecamatan
-        kec_code = comp["kec_code"]
-        districts = self.fetch_districts_live(kab_code)
-        kec_name = districts.get(kec_code)
-
-        if not kec_name:
-            result["error_message"] = f"Kode Kecamatan '{kec_code}' tidak ditemukan di bawah '{kab_name}' ({kab_code})."
-            return result
-
-        result["hierarchy_details"]["kecamatan"] = {"code": kec_code, "name": kec_name, "valid": True}
-
-        if length == 6:
-            result["level"] = "Kecamatan"
-            result["exists_in_db"] = True
-            result["hierarchy_valid"] = True
-            result["official_name"] = kec_name
-            return result
-
-        # 4. Cek Desa / Kelurahan
-        desa_code = comp["desa_code"]
-        villages = self.fetch_villages_live(kec_code)
-        desa_name = villages.get(desa_code)
-
-        if not desa_name:
-            # Retry langsung ke ibnux dengan timeout lebih panjang
-            try:
-                clean_kec2 = self.clean_code_string(kec_code)
-                url2 = f"https://ibnux.github.io/data-indonesia/kelurahan/{clean_kec2}.json"
-                req2 = urllib.request.Request(url2, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
-                with urllib.request.urlopen(req2, timeout=6) as resp2:
-                    if resp2.status == 200:
-                        data2 = json.loads(resp2.read().decode('utf-8'))
-                        retry_map = {self.format_code_with_dots(str(item['id'])): str(item['nama']) for item in data2}
-                        if retry_map:
-                            self._cache_villages[kec_code] = retry_map
-                            desa_name = retry_map.get(desa_code)
-            except Exception:
-                pass
-
-        if not desa_name:
-            result["error_message"] = f"Kode Desa/Kelurahan '{desa_code}' tidak ditemukan di bawah Kecamatan '{kec_name}' ({kec_code})."
-            return result
-
-        result["hierarchy_details"]["desa"] = {"code": desa_code, "name": desa_name, "valid": True}
-        result["level"] = "Desa/Kelurahan"
-        result["exists_in_db"] = True
-        result["hierarchy_valid"] = True
-        result["official_name"] = desa_name
-
-        return result
 
 class KodeWilayahAPIClient:
     """
@@ -3328,6 +2981,19 @@ def process_audit_document(pdf_bytes, filename, utm_zone=None, datum="EPSG:4326"
             "gamma_sec": p['meridian_convergence_sec']
         })
 
+    # Audit Kesesuaian Kode Wilayah pada Dokumen & Tabel
+    try:
+        wilayah_audit_res = audit_wilayah_consistency(pdf_bytes, db_instance=wilayah_db_parser)
+    except Exception as ex_w_audit:
+        print(f"[WilayahAudit Warning] Error running audit_wilayah_consistency: {ex_w_audit}")
+        wilayah_audit_res = {
+            "status": "FAIL",
+            "status_label": "✗ Kode Wilayah Tidak Sesuai",
+            "total_records_checked": 0,
+            "failed_records": 0,
+            "items": []
+        }
+
     return {
         "status": "success",
         "is_skvt": True,
@@ -3346,6 +3012,7 @@ def process_audit_document(pdf_bytes, filename, utm_zone=None, datum="EPSG:4326"
         "ce95": round(ce95, 4),
         "big_scale_grade": big_scale_grade,
         "anomalies_9": anomalies_dynamic,
+        "wilayah_consistency_audit": wilayah_audit_res,
         "components": components_summary,
         "samples": sample_points_out,
         "all_points": all_points_export,
@@ -3354,6 +3021,7 @@ def process_audit_document(pdf_bytes, filename, utm_zone=None, datum="EPSG:4326"
         "highlighted_pdf_base64": highlighted_pdf_b64,
         "highlighted_saved_path": highlighted_pdf_path
     }
+
 
 
 def generate_consolidated_batch_pdf_report(batch_results, output_dir=None):

@@ -693,6 +693,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
+        // Tab: Kesesuaian Kode Wilayah
+        renderWilayahConsistencyAudit(data.wilayah_consistency_audit);
+
+
         // Tab 6: Coordinates
         const tbodySamples = document.getElementById('samples-tbody');
         if (tbodySamples) {
@@ -1410,5 +1414,58 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (e) { console.warn("AI info:", e); }
     }
+
+    // ================================================================
+    // WILAYAH CONSISTENCY AUDIT RENDERER
+    // ================================================================
+    function renderWilayahConsistencyAudit(wilayahAudit) {
+        const badgeEl = document.getElementById('wilayah-status-badge');
+        const tbodyEl = document.getElementById('wilayah-audit-tbody');
+        if (!badgeEl || !tbodyEl) return;
+
+        tbodyEl.innerHTML = '';
+        if (!wilayahAudit || !wilayahAudit.items || wilayahAudit.items.length === 0) {
+            badgeEl.style.background = '#f1f5f9';
+            badgeEl.style.color = '#475569';
+            badgeEl.innerHTML = '<i class="fa-solid fa-circle-question"></i> Tidak Ada Data Kode Wilayah';
+            tbodyEl.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#64748b; padding:20px;">Tidak terdeteksi Kode Wilayah 10-digit bertitik pada dokumen ini.</td></tr>';
+            return;
+        }
+
+        const isPass = (wilayahAudit.status === 'PASS');
+        if (isPass) {
+            badgeEl.style.background = '#dcfce7';
+            badgeEl.style.color = '#15803d';
+            badgeEl.innerHTML = '<i class="fa-solid fa-circle-check"></i> ✓ Kode Wilayah Sesuai';
+        } else {
+            badgeEl.style.background = '#fee2e2';
+            badgeEl.style.color = '#b91c1c';
+            badgeEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ✗ Kode Wilayah Tidak Sesuai';
+        }
+
+        wilayahAudit.items.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            const isValid = item.is_valid;
+            const mismatchText = item.mismatch_type 
+                ? `<span style="background:#fee2e2; color:#991b1b; padding:4px 8px; border-radius:6px; font-weight:700; font-size:0.8rem; display:inline-block;">${item.mismatch_type}</span>` 
+                : '<span style="color:#16a34a; font-weight:700;"><i class="fa-solid fa-check"></i> Sesuai</span>';
+
+            tr.innerHTML = `
+                <td style="text-align:center; font-weight:700;">${index + 1}</td>
+                <td><small style="color:#64748b; font-weight:600;">${item.source || '-'}</small></td>
+                <td><code style="color:#0056a3; font-weight:700; font-size:0.9rem;">${item.code_in_doc}</code></td>
+                <td><strong style="color:#1e293b;">${item.written_in_doc || '-'}</strong></td>
+                <td><strong style="color:#0f766e;">${item.expected_from_db || '-'}</strong></td>
+                <td>${mismatchText}</td>
+                <td style="font-size:0.85rem; color:#334155; line-height:1.4;">${item.recommendation || '-'}</td>
+            `;
+            if (!isValid) {
+                tr.style.background = '#fff5f5';
+            }
+            tbodyEl.appendChild(tr);
+        });
+    }
+
     loadAiModelsInfo();
 });
+
