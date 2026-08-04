@@ -1,0 +1,16 @@
+{
+  "name": "Veridoc — Audit Dokumen SKVT BIG",
+  "short_name": "Veridoc",
+  "description": "Sistem Audit Dokumen SKVT BIG berbasis Engine Geospasial",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/svgs/solid/shield-halved.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

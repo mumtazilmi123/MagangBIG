@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veridoc — Audit Dokumen SKVT BIG</title>
+    <meta name="description" content="Veridoc — Sistem Audit Dokumen SKVT BIG berbasis Engine Geospasial.">
+    
+    <!-- Preconnect & DNS prefetch for fast CDN resolution -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://unpkg.com">
+    
+    <!-- App Core Stylesheet (Priority local load) -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- External CDNs with Async/Non-blocking Rendering -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+    <!-- Premium Header -->
+    <header class="app-header" id="app-header">
+        <div class="header-glow"></div>
+        <div class="container header-content">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <div class="brand-icon-pulse"></div>
+                </div>
+                <div class="brand-text">
+                    <h1>Veridoc <span class="brand-badge-ai"><i class="fa-solid fa-microchip"></i> Audit Engine</span></h1>
+                    <p>Sistem Audit Dokumen SKVT BIG</p>
+                </div>
+            </div>
+            <div class="header-badges">
+                <button type="button" id="btn-header-launcher" class="btn-header-launcher" title="Unduh Launcher Aplikasi Veridoc">
+                    <i class="fa-solid fa-laptop-code"></i> Unduh Launcher Aplikasi
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container main-content">
+        <!-- Upload Section -->
+        <section class="upload-section" id="upload-section">
+            <div class="card upload-card glass-card">
+                <!-- Mode Selector -->
+                <div class="mode-tabs">
+                    <button type="button" id="btn-mode-pdf" class="mode-tab active">
+                        <i class="fa-solid fa-file-pdf"></i> Audit Dokumen PDF
+                    </button>
+                    <button type="button" id="btn-mode-map" class="mode-tab">
+                        <i class="fa-solid fa-map-location-dot"></i> Pembacaan Peta
+                    </button>
+                </div>
+
+                <!-- Dropzone -->
+                <div class="dropzone" id="drop-zone">
+                    <div class="drop-icon-wrapper">
+                        <div class="drop-icon-bg"></div>
+                        <i class="fa-solid fa-cloud-arrow-up drop-icon-main" id="upload-icon-element"></i>
+                    </div>
+                    <h3 id="upload-title-element">Unggah Dokumen PDF SKVT</h3>
+                    <p id="upload-desc-element">Pilih atau seret satu atau beberapa file PDF sekaligus</p>
+                    
+                    <input type="file" id="file-input" accept=".pdf" multiple hidden>
+                    <input type="file" id="map-audit-input" accept=".pdf,.png,.jpg,.jpeg" hidden>
+                    
+                    <div class="dropzone-buttons">
+                        <button type="button" class="btn btn-browse" id="btn-browse-action">
+                            <i class="fa-solid fa-folder-open"></i> Pilih Berkas
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Selected Files List -->
+                <div class="files-list hidden" id="files-list">
+                    <div class="files-list-header">
+                        <span><i class="fa-solid fa-file-circle-check"></i> <span id="files-count">0</span> berkas terpilih</span>
+                        <button type="button" class="btn-clear-all" id="clear-all-files"><i class="fa-solid fa-trash-can"></i> Hapus Semua</button>
+                    </div>
+                    <div class="files-chips" id="files-chips"></div>
+                </div>
+
+
+                <!-- Action Button -->
+                <button type="button" class="btn btn-primary btn-process" id="process-btn" disabled>
+                    <i class="fa-solid fa-play"></i> <span id="process-btn-text">Jalankan Pengecekan Dokumen</span>
+                </button>
+
+                <!-- Progress Bar -->
+                <div class="progress-box hidden" id="progress-container">
+                    <div class="progress-status" id="progress-text">Memproses audit geospasial...</div>
+                    <div class="progress-track">
+                        <div class="progress-bar-fill" id="progress-fill"></div>
+                    </div>
+                </div>
+
+                <!-- Error Alert Box -->
+                <div id="error-message" class="alert alert-danger hidden"></div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section id="results-section" class="results-section hidden">
+            <!-- Top Summary Stat Cards -->
+            <div class="stat-grid" id="stat-grid">
+                <div class="stat-card stat-card-blue">
+                    <div class="stat-icon icon-blue"><i class="fa-solid fa-map-location-dot"></i></div>
+                    <div class="stat-info">
+                        <h3 id="res-region">-</h3>
+                        <p>Wilayah Administrasi</p>
+                    </div>
+                </div>
+                <div class="stat-card stat-card-green">
+                    <div class="stat-icon icon-green"><i class="fa-solid fa-bullseye"></i></div>
+                    <div class="stat-info">
+                        <h3 id="res-total">0 Titik</h3>
+                        <p>Total Titik Spasial</p>
+                    </div>
+                </div>
+                <div class="stat-card stat-card-amber">
+                    <div class="stat-icon icon-amber"><i class="fa-solid fa-clipboard-check"></i></div>
+                    <div class="stat-info">
+                        <h3 id="res-anomalies">0 Catatan</h3>
+                        <p>Hasil Pengecekan Dokumen</p>
+                    </div>
+                </div>
+                <div class="stat-card stat-card-purple">
+                    <div class="stat-icon icon-purple"><i class="fa-solid fa-chart-line"></i></div>
+                    <div class="stat-info">
+                        <h3 id="res-ce95">0.00 m</h3>
+                        <p>Akurasi Horizontal CE95</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Exporter Toolbar (Langsung di bawah Metric Cards) -->
+            <div class="card exporter-card" id="exporter-section" style="margin-top:18px; margin-bottom:24px;">
+                <div class="exporter-header">
+                    <div class="saved-path"><i class="fa-solid fa-folder-check"></i> <span id="res-saved-path">Documents/Veridoc</span></div>
+                    <h3><i class="fa-solid fa-download"></i> Unduh & Ekspor Hasil Audit</h3>
+                </div>
+                <div class="exporter-buttons">
+                    <button type="button" id="btn-download-pdf" class="btn btn-pdf"><i class="fa-solid fa-file-pdf"></i> PDF Laporan Audit</button>
+                    <button type="button" id="btn-export-geojson" class="btn btn-gis"><i class="fa-solid fa-globe"></i> GeoJSON</button>
+                    <button type="button" id="btn-export-kml" class="btn btn-gis"><i class="fa-solid fa-earth-americas"></i> KML</button>
+                    <button type="button" id="btn-export-csv" class="btn btn-gis"><i class="fa-solid fa-file-csv"></i> CSV</button>
+                    <button type="button" id="btn-download-shortcut" class="btn btn-dark"><i class="fa-solid fa-laptop-code"></i> Launcher</button>
+                </div>
+            </div>
+
+            <!-- Multi-file Navigator -->
+            <div id="multi-file-nav" class="card multi-file-nav hidden">
+                <div class="card-header">
+                    <h3><i class="fa-solid fa-layer-group"></i> Hasil Audit Multi-Dokumen</h3>
+                    <span class="badge-count" id="multi-file-count">0 File</span>
+                </div>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Nama File PDF</th>
+                                <th>Wilayah</th>
+                                <th>Total Titik</th>
+                                <th>CE95</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="multi-file-tbody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Consolidated Batch PDF Download Banner -->
+                <div style="margin-top:20px; padding:18px 24px; background:linear-gradient(135deg, #0056A3, #003B73); border-radius:12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; box-shadow:0 4px 16px rgba(0,86,163,0.25);">
+                    <div style="display:flex; align-items:center; gap:14px;">
+                        <div style="width:48px; height:48px; background:rgba(255,255,255,0.15); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#ffffff; font-size:1.5rem;">
+                            <i class="fa-solid fa-file-pdf"></i>
+                        </div>
+                        <div>
+                            <h4 style="color:#ffffff; font-size:1.05rem; font-weight:700; margin:0 0 4px 0;">Unduh Laporan Audit Konsolidasi Batch</h4>
+                            <p style="color:rgba(255,255,255,0.85); font-size:0.85rem; margin:0;">1 File PDF Laporan Resmi Gabungan Tersegmentasi Per Daerah / Wilayah (Tanpa Perlu Buka Detail)</p>
+                        </div>
+                    </div>
+                    <button type="button" id="btn-download-batch-pdf" style="background:#e5322d; color:#ffffff; border:none; padding:12px 24px; font-size:0.92rem; font-weight:700; border-radius:8px; display:flex; align-items:center; gap:8px; cursor:pointer; box-shadow:0 4px 12px rgba(229,50,45,0.4); transition:all 0.2s ease;">
+                        <i class="fa-solid fa-download"></i> Unduh Laporan PDF (Gabungan)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Map Inspection Result Container -->
+            <div id="map-result-container" class="card result-card hidden">
+                <div class="card-header">
+                    <h3><i class="fa-solid fa-map-location-dot"></i> Hasil Pembacaan & Audit Visual Peta (Vision AI)</h3>
+                </div>
+                <div class="grid-4col margin-top-sm">
+                    <div class="box-stat">
+                        <span>🗺️ Keterbacaan Peta</span>
+                        <h4 id="map-stat-baca">-</h4>
+                    </div>
+                    <div class="box-stat">
+                        <span>✍️ Pemeriksaan Typo</span>
+                        <h4 id="map-stat-typo">-</h4>
+                    </div>
+                    <div class="box-stat">
+                        <span>📍 Koordinat Legenda vs Peta</span>
+                        <h4 id="map-stat-coord">-</h4>
+                    </div>
+                    <div class="box-stat">
+                        <span>🏷️ Teks TK Bertumpuk</span>
+                        <h4 id="map-stat-overlap">-</h4>
+                    </div>
+                </div>
+                <div class="box-details margin-top-sm" id="map-audit-details">
+                    <!-- Dynamic Map Audit Details will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Single PDF Audit Tabs -->
+            <div class="nav-tabs-wrapper" id="pdf-tabs-wrapper">
+                <div class="nav-tabs" id="main-nav-tabs">
+                    <button type="button" class="tab-item active" data-tab="tab-9-rules">
+                        <i class="fa-solid fa-list-check"></i> Matriks Pengecekan
+                    </button>
+                    <button type="button" class="tab-item" data-tab="tab-geomatics">
+                        <i class="fa-solid fa-chart-pie"></i> Akurasi Spasial
+                    </button>
+                    <button type="button" class="tab-item" data-tab="tab-map-gis">
+                        <i class="fa-solid fa-map"></i> Peta Spasial
+                    </button>
+                    <button type="button" class="tab-item" data-tab="tab-components">
+                        <i class="fa-solid fa-cubes"></i> Komponen SKVT
+                    </button>
+                    <button type="button" class="tab-item" data-tab="tab-villages">
+                        <i class="fa-solid fa-city"></i> Desa/Kelurahan
+                    </button>
+                    <button type="button" class="tab-item" data-tab="tab-coordinates">
+                        <i class="fa-solid fa-location-crosshairs"></i> Koordinat
+                    </button>
+                    <button type="button" class="tab-item" data-tab="tab-regulations">
+                        <i class="fa-solid fa-scale-balanced"></i> Regulasi BIG
+                    </button>
+                    <button type="button" class="tab-item" data-tab="tab-ai-engine">
+                        <i class="fa-solid fa-gears"></i> Modul Engine
+                    </button>
+                </div>
+
+                <!-- Tab 1: Document Inspection Rules -->
+                <div id="tab-9-rules" class="tab-pane active">
+                    <div class="rule-filter-bar" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                            <span class="filter-label"><i class="fa-solid fa-filter"></i> Filter Matriks:</span>
+                            <div class="filter-buttons">
+                                <button type="button" class="rule-filter-btn active" data-filter="all">Semua Parameter (15)</button>
+                                <button type="button" class="rule-filter-btn" data-filter="issues">Perlu Perbaikan</button>
+                                <button type="button" class="rule-filter-btn" data-filter="pass">Sesuai (PASS)</button>
+                            </div>
+                        </div>
+                        <div class="view-toggle-buttons" style="display:flex; gap:6px; align-items:center;">
+                            <button type="button" class="view-toggle-btn active" id="btn-view-table" style="padding:6px 14px; border-radius:18px; font-size:0.8rem; font-weight:700; cursor:pointer; background:#e5322d; color:#fff; border:none;">
+                                <i class="fa-solid fa-table-list"></i> Tampilan Tabel
+                            </button>
+                            <button type="button" class="view-toggle-btn" id="btn-view-cards" style="padding:6px 14px; border-radius:18px; font-size:0.8rem; font-weight:700; cursor:pointer; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;">
+                                <i class="fa-solid fa-table-cells-large"></i> Tampilan Kartu
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Table View Container (Primary) -->
+                    <div class="table-container" id="anomaly-table-wrapper" style="margin-top:16px;">
+                        <table class="table" id="anomaly-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:75px; text-align:center;">No / Rule</th>
+                                    <th style="width:230px;">Parameter Evaluasi</th>
+                                    <th style="width:100px;">Halaman</th>
+                                    <th style="width:110px; text-align:center;">Status</th>
+                                    <th>Temuan & Detail Masalah (Snippet Teks Dokumen)</th>
+                                    <th style="width:280px;">Standar BIG & Rekomendasi Perbaikan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="anomaly-table-tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Cards View Container (Secondary) -->
+                    <div class="anomaly-cards-container hidden" id="anomaly-cards-container" style="margin-top:16px;"></div>
+                </div>
+
+                <!-- Tab 2: Geomatics -->
+                <div id="tab-geomatics" class="tab-pane">
+                    <div class="grid-4col">
+                        <div class="metric-card">
+                            <h4>RMSE Easting (X)</h4>
+                            <p id="geo-rmse-x">0.0000 m</p>
+                            <span>Presisi Sumbu X</span>
+                        </div>
+                        <div class="metric-card">
+                            <h4>RMSE Northing (Y)</h4>
+                            <p id="geo-rmse-y">0.0000 m</p>
+                            <span>Presisi Sumbu Y</span>
+                        </div>
+                        <div class="metric-card">
+                            <h4>RMSE 2D</h4>
+                            <p id="geo-rmse-r">0.0000 m</p>
+                            <span>Akurasi Posisi 2D</span>
+                        </div>
+                        <div class="metric-card primary-metric">
+                            <h4>CE95</h4>
+                            <p id="geo-ce95">0.0000 m</p>
+                            <span id="geo-big-grade">Skala Peta BIG</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Map -->
+                <div id="tab-map-gis" class="tab-pane">
+                    <div id="leaflet-map" class="map-container"></div>
+                </div>
+
+                <!-- Tab 4: Components -->
+                <div id="tab-components" class="tab-pane">
+                    <div class="grid-2col">
+                        <div class="comp-box"><div class="comp-title"><i class="fa-solid fa-file-contract"></i> Surat Keterangan Utama</div><div class="comp-desc" id="comp-1-body">-</div></div>
+                        <div class="comp-box"><div class="comp-title"><i class="fa-solid fa-square-check"></i> Lampiran I (KUGI)</div><div class="comp-desc" id="comp-2-body">-</div></div>
+                        <div class="comp-box"><div class="comp-title"><i class="fa-solid fa-city"></i> Lampiran II (Desa/Kel)</div><div class="comp-desc" id="comp-3-body">-</div></div>
+                        <div class="comp-box"><div class="comp-title"><i class="fa-solid fa-crosshairs"></i> Lampiran III (Koordinat)</div><div class="comp-desc" id="comp-4-body">-</div></div>
+                    </div>
+                </div>
+
+                <!-- Tab 5: Villages -->
+                <div id="tab-villages" class="tab-pane">
+                    <div class="table-container"><table class="table"><thead><tr><th>No</th><th>Kode Permendagri</th><th>Desa / Kelurahan</th><th>Kecamatan</th><th>Kab / Kota</th><th>Halaman</th></tr></thead><tbody id="villages-tbody"></tbody></table></div>
+                </div>
+
+                <!-- Tab 6: Coordinates -->
+                <div id="tab-coordinates" class="tab-pane">
+                    <div class="table-container"><table class="table"><thead><tr><th>ID Titik & Halaman</th><th>Koordinat (DMS)</th><th>Dokumen UTM (X, Y)</th><th>Kalkulasi UTM & γ</th><th>GMaps</th></tr></thead><tbody id="samples-tbody"></tbody></table></div>
+                </div>
+
+                <!-- Tab 7: Regulations -->
+                <div id="tab-regulations" class="tab-pane">
+                    <div class="search-bar margin-bottom-sm">
+                        <input type="text" id="reg-search-input" class="form-control" placeholder="Cari regulasi geospasial...">
+                        <button type="button" id="btn-search-reg" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Cari</button>
+                    </div>
+                    <div id="regulations-cards-container" class="grid-2col"></div>
+                </div>
+
+                <!-- Tab 8: Audit Engine -->
+                <div id="tab-ai-engine" class="tab-pane">
+                    <div class="ai-banner">
+                        <div class="ai-banner-icon"><i class="fa-solid fa-gears"></i></div>
+                        <div class="ai-banner-text">
+                            <h3>Arsitektur & Transparansi Audit Engine Veridoc</h3>
+                            <p>5 modul analisis geospasial — 100% deterministik, bebas halusinasi koordinat.</p>
+                        </div>
+                    </div>
+                    <div id="ai-models-cards-container" class="grid-2col margin-top-sm"></div>
+                </div>
+            </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <div class="container">
+            <p>Veridoc v5.0 — Sistem Audit Geospasial BIG | Dikembangkan oleh Abidzar Al Ghifari & Naufal Mumtaz Ilmi</p>
+        </div>
+    </footer>
+
+    <!-- Audit Live Animated Progress Modal -->
+    <div id="audit-progress-modal" class="modal-overlay hidden">
+        <div class="modal-card modal-progress-card glass-card">
+            <!-- Modal Header & Animated Orb -->
+            <div class="progress-modal-header">
+                <div class="progress-orb-container">
+                    <div class="progress-orb-glow"></div>
+                    <div class="progress-orb-ring"></div>
+                    <div class="progress-orb-center">
+                        <i class="fa-solid fa-microchip" id="progress-orb-icon"></i>
+                    </div>
+                </div>
+                <div class="progress-header-info">
+                    <span class="badge-bg-running" id="modal-bg-badge">
+                        <i class="fa-solid fa-rotate spin-icon"></i> Audit Aktif — Bekerja di Background
+                    </span>
+                    <h2 id="modal-progress-title">Proses Audit Geospasial SKVT BIG</h2>
+                    <p id="modal-progress-sub">Sistem Audit Engine sedang menganalisis dokumen secara presisi</p>
+                </div>
+            </div>
+
+            <!-- Big Percent & Smooth Bar -->
+            <div class="modal-progress-main">
+                <div class="modal-progress-percentage-row">
+                    <span class="modal-percent-label" id="modal-percent-text">0%</span>
+                    <span class="modal-status-pill" id="modal-status-pill">Memulai Engine Audit...</span>
+                </div>
+                <div class="modal-progress-track">
+                    <div class="modal-progress-fill" id="modal-progress-fill" style="width: 0%;">
+                        <div class="modal-progress-shimmer"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Steps Checklist -->
+            <div class="progress-steps-container">
+                <div class="progress-steps-title">
+                    <i class="fa-solid fa-list-check"></i> Tahapan Pengerjaan Audit Real-Time
+                </div>
+                <div class="progress-steps-list" id="modal-progress-steps">
+                    <div class="progress-step-item pending" id="step-1">
+                        <div class="step-icon"><i class="fa-solid fa-file-pdf"></i></div>
+                        <div class="step-content">
+                            <div class="step-title">1. Membaca & Extract Struktur PDF</div>
+                            <div class="step-desc">Mengekstrak halaman, teks vektor, tabel koordinat, dan objek gambar map...</div>
+                        </div>
+                        <div class="step-status-badge" id="step-badge-1"><i class="fa-solid fa-hourglass-start"></i> Menunggu</div>
+                    </div>
+                    <div class="progress-step-item pending" id="step-2">
+                        <div class="step-icon"><i class="fa-solid fa-globe"></i></div>
+                        <div class="step-content">
+                            <div class="step-title">2. Transformasi Geodesi & Zona UTM</div>
+                            <div class="step-desc">Proyeksi Ellipsoid WGS 84 ke UTM dan kalkulasi konvergensi meridian (γ)...</div>
+                        </div>
+                        <div class="step-status-badge" id="step-badge-2"><i class="fa-solid fa-hourglass-start"></i> Menunggu</div>
+                    </div>
+                    <div class="progress-step-item pending" id="step-3">
+                        <div class="step-icon"><i class="fa-solid fa-draw-polygon"></i></div>
+                        <div class="step-content">
+                            <div class="step-title">3. Evaluasi Presisi Spasial & RMSE</div>
+                            <div class="step-desc">Menghitung residu koordinat (dX, dY), 2D RMSE, dan akurasi CE95 Standar BIG...</div>
+                        </div>
+                        <div class="step-status-badge" id="step-badge-3"><i class="fa-solid fa-hourglass-start"></i> Menunggu</div>
+                    </div>
+                    <div class="progress-step-item pending" id="step-4">
+                        <div class="step-icon"><i class="fa-solid fa-map"></i></div>
+                        <div class="step-content">
+                            <div class="step-title">4. Inspeksi Kartografi & Legenda Peta</div>
+                            <div class="step-desc">Memeriksa citra peta lampiran & kelengkapan blok legenda kartografis resmi...</div>
+                        </div>
+                        <div class="step-status-badge" id="step-badge-4"><i class="fa-solid fa-hourglass-start"></i> Menunggu</div>
+                    </div>
+                    <div class="progress-step-item pending" id="step-5">
+                        <div class="step-icon"><i class="fa-solid fa-clipboard-check"></i></div>
+                        <div class="step-content">
+                            <div class="step-title">5. Evaluasi 9 Catatan Kritis & Tipografi</div>
+                            <div class="step-desc">Inspeksi konsistensi font, format DMS/desimal, NIP penandatangan & kode Kemendagri...</div>
+                        </div>
+                        <div class="step-status-badge" id="step-badge-5"><i class="fa-solid fa-hourglass-start"></i> Menunggu</div>
+                    </div>
+                    <div class="progress-step-item pending" id="step-6">
+                        <div class="step-icon"><i class="fa-solid fa-database"></i></div>
+                        <div class="step-content">
+                            <div class="step-title">6. Generasi Laporan & Database Spasial</div>
+                            <div class="step-desc">Menyusun laporan akhir PDF & menyimpan data spasial ke DuckDB...</div>
+                        </div>
+                        <div class="step-status-badge" id="step-badge-6"><i class="fa-solid fa-hourglass-start"></i> Menunggu</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Background Notice & Action -->
+            <div class="modal-progress-footer">
+                <div class="bg-notice">
+                    <i class="fa-solid fa-shield-cat"></i>
+                    <span><strong>Aman Buka Tab Lain:</strong> Pemrosesan tetap berjalan penuh di background. Anda akan menerima notifikasi saat selesai.</span>
+                </div>
+                <button type="button" class="btn btn-secondary btn-min-modal" id="btn-minimize-modal">
+                    <i class="fa-solid fa-window-minimize"></i> Minimalkan Ke Background
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Background Status Pill when Modal Minimized -->
+    <div id="bg-floating-pill" class="bg-floating-pill hidden">
+        <i class="fa-solid fa-rotate spin-icon" style="color:var(--primary-hover); font-size:1.1rem;"></i>
+        <div style="display:flex; flex-direction:column;">
+            <span style="font-size:0.8rem; font-weight:700; color:var(--text-bright);" id="floating-pill-title">Audit Berjalan di Background...</span>
+            <span style="font-size:0.72rem; color:var(--accent-emerald);" id="floating-pill-sub">Progres: 0%</span>
+        </div>
+        <span class="badge-count" style="margin-left:8px; font-size:0.72rem;">Klik untuk Buka</span>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js?v=5.0.0"></script>
+</body>
+</html>
