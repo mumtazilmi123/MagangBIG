@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audit Peta Batas Desa — Template BIG</title>
+  <meta name="description" content="Sistem Audit Otomatis Peta Batas Desa berdasarkan Template BIG — memeriksa 16 komponen wajib kartografi.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ================================================================
+     HEADER
+     ================================================================ -->
+<header class="app-header">
+  <div class="container">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon-wrap">
+          <div class="brand-icon-bg"></div>
+          <i class="fa-solid fa-map-location-dot"></i>
+        </div>
+        <div class="brand-text">
+          <h1>
+            Audit Peta Batas Desa
+            <span class="brand-badge"><i class="fa-solid fa-microchip"></i> BIG Template</span>
+          </h1>
+          <div class="brand-sub">Pemeriksaan 16 Komponen Kartografi Wajib · OCR + Computer Vision + Rule Based</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <!-- API Status indicator -->
+        <div style="display:flex; align-items:center; gap:8px; font-size:0.78rem; color:var(--text-muted);">
+          <span id="api-status-dot" style="width:8px; height:8px; border-radius:50%; background:#F59E0B; display:inline-block; flex-shrink:0;"></span>
+          <span id="api-status-text">Menghubungkan...</span>
+        </div>
+        <a href="http://localhost:8000" target="_blank" class="btn-header" title="Buka Veridoc SKVT">
+          <i class="fa-solid fa-shield-halved"></i> Veridoc SKVT
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ================================================================
+     MAIN CONTENT
+     ================================================================ -->
+<main class="container main-wrap">
+
+  <!-- ── UPLOAD SECTION ── -->
+  <section class="upload-section" id="upload-section">
+    <div class="upload-card">
+      <div class="upload-card-title">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+        Unggah File Peta Batas Desa
+      </div>
+
+      <!-- Dropzone -->
+      <div class="dropzone" id="drop-zone">
+        <div class="drop-icon-wrap">
+          <i class="fa-solid fa-file-image"></i>
+        </div>
+        <div class="drop-title">Seret file ke sini atau klik untuk memilih</div>
+        <div class="drop-desc">Unggah satu file Peta Batas Desa untuk diaudit sesuai Template BIG</div>
+        <div class="drop-formats">
+          <span class="format-badge">PDF</span>
+          <span class="format-badge">JPG</span>
+          <span class="format-badge">JPEG</span>
+          <span class="format-badge">PNG</span>
+          <span class="format-badge">TIFF</span>
+        </div>
+        <button type="button" class="btn btn-secondary" id="btn-browse">
+          <i class="fa-solid fa-folder-open"></i> Pilih Berkas
+        </button>
+        <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif" hidden>
+      </div>
+
+      <!-- File selected badge -->
+      <div class="file-selected hidden" id="file-selected-badge">
+        <i class="fa-solid fa-file-circle-check" style="font-size:1.1rem;"></i>
+        <span>File terpilih:</span>
+        <span class="file-name" id="file-name-display">-</span>
+        <button type="button" class="btn-remove" id="btn-remove-file" title="Hapus pilihan">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Error -->
+      <div class="alert-error hidden" id="error-box">
+        <i class="fa-solid fa-circle-exclamation" style="flex-shrink:0;"></i>
+        <span></span>
+      </div>
+
+      <!-- Process button -->
+      <div class="process-row">
+        <button type="button" class="btn btn-primary btn-process" id="btn-process" disabled>
+          <i class="fa-solid fa-magnifying-glass-chart"></i>
+          Mulai Audit Peta
+        </button>
+      </div>
+    </div>
+
+    <!-- Info card -->
+    <div style="margin-top:16px; display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:12px;">
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; display:flex; gap:12px; align-items:flex-start;">
+        <i class="fa-solid fa-layer-group" style="color:#4FB3FF; font-size:1.1rem; margin-top:2px;"></i>
+        <div>
+          <div style="font-size:0.85rem; font-weight:700; color:var(--text-bright); margin-bottom:3px;">16 Komponen Wajib</div>
+          <div style="font-size:0.78rem; color:var(--text-muted);">Memeriksa judul, skala, arah utara, grid, datum, proyeksi, legenda, inset, dan lainnya.</div>
+        </div>
+      </div>
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; display:flex; gap:12px; align-items:flex-start;">
+        <i class="fa-solid fa-robot" style="color:#A78BFA; font-size:1.1rem; margin-top:2px;"></i>
+        <div>
+          <div style="font-size:0.85rem; font-weight:700; color:var(--text-bright); margin-bottom:3px;">OCR + Computer Vision</div>
+          <div style="font-size:0.78rem; color:var(--text-muted);">Deteksi berbasis OCR (Tesseract) dan Computer Vision (OpenCV) — tanpa halusinasi AI.</div>
+        </div>
+      </div>
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; display:flex; gap:12px; align-items:flex-start;">
+        <i class="fa-solid fa-table" style="color:#2DD4BF; font-size:1.1rem; margin-top:2px;"></i>
+        <div>
+          <div style="font-size:0.85rem; font-weight:700; color:var(--text-bright); margin-bottom:3px;">Titik Kartometrik</div>
+          <div style="font-size:0.78rem; color:var(--text-muted);">Mengekstrak daftar koordinat titik batas desa dari tabel PDF maupun gambar secara otomatis.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ================================================================
+       RESULTS SECTION
+       ================================================================ -->
+  <section id="results-section" class="results-section">
+
+    <!-- ── Audit Status Banner ── -->
+    <div class="audit-banner" id="audit-banner" style="display:none;">
+      <div class="banner-icon" id="banner-icon">
+        <i class="fa-solid fa-circle-check"></i>
+      </div>
+      <div class="banner-info">
+        <div class="banner-filename" id="banner-filename">-</div>
+        <div class="banner-status" id="banner-status">-</div>
+        <div class="banner-ts" id="banner-ts">-</div>
+      </div>
+    </div>
+
+    <!-- ── Stat Cards ── -->
+    <div class="stat-grid" style="margin-bottom:24px;">
+      <div class="stat-card">
+        <div class="stat-icon si-blue"><i class="fa-solid fa-percent"></i></div>
+        <div>
+          <div class="stat-val" id="stat-completeness">-</div>
+          <div class="stat-label">Kelengkapan Komponen</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon si-green"><i class="fa-solid fa-circle-check"></i></div>
+        <div>
+          <div class="stat-val" id="stat-found">-</div>
+          <div class="stat-label">Komponen Ditemukan</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon si-red"><i class="fa-solid fa-circle-xmark"></i></div>
+        <div>
+          <div class="stat-val" id="stat-notfound">-</div>
+          <div class="stat-label">Tidak Ditemukan</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon si-yellow"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div>
+          <div class="stat-val" id="stat-uncertain">-</div>
+          <div class="stat-label">Tidak Dapat Dipastikan</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon si-teal"><i class="fa-solid fa-gauge-high"></i></div>
+        <div>
+          <div class="stat-val" id="stat-confidence">-</div>
+          <div class="stat-label">Confidence Rata-Rata</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon si-purple"><i class="fa-solid fa-layer-group"></i></div>
+        <div>
+          <div class="stat-val" id="stat-total">-</div>
+          <div class="stat-label">Total Komponen Diperiksa</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Audit Table ── -->
+    <div class="card mb-24" style="margin-bottom:24px;">
+      <div class="card-header">
+        <div class="card-title">
+          <i class="fa-solid fa-table-list"></i>
+          Tabel Hasil Audit Komponen Peta
+        </div>
+        <!-- Filter buttons -->
+        <div class="filter-bar" style="margin-bottom:0;">
+          <span class="filter-label"><i class="fa-solid fa-filter"></i> Filter:</span>
+          <button class="filter-btn active" data-filter="all" id="filter-all">Semua</button>
+          <button class="filter-btn" data-filter="found" id="filter-found">
+            <i class="fa-solid fa-check"></i> Sesuai
+          </button>
+          <button class="filter-btn" data-filter="uncertain" id="filter-uncertain">
+            <i class="fa-solid fa-triangle-exclamation"></i> Perlu Perbaikan
+          </button>
+          <button class="filter-btn" data-filter="not_found" id="filter-notfound">
+            <i class="fa-solid fa-xmark"></i> Tidak Ditemukan
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-wrap">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th class="col-no">No</th>
+                <th class="col-component">Komponen</th>
+                <th class="col-status">Status</th>
+                <th class="col-conf">Confidence</th>
+                <th class="col-method">Metode</th>
+                <th class="col-evidence">Evidence</th>
+                <th class="col-value">Hasil Deteksi</th>
+                <th class="col-notes">Catatan</th>
+                <th class="col-expand">Detail</th>
+              </tr>
+            </thead>
+            <tbody id="audit-tbody">
+              <!-- Rendered by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Titik Kartometrik ── -->
+    <div class="card kartometrik-section">
+      <div class="card-header">
+        <div class="card-title">
+          <i class="fa-solid fa-location-crosshairs"></i>
+          Daftar Titik Kartometrik Batas Desa
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <span style="font-size:0.80rem; color:var(--text-muted);">Metode: <span id="kartometrik-method" style="color:var(--primary-hover); font-weight:600;">-</span></span>
+          <span style="font-size:0.80rem; color:var(--text-muted);">Total: <span id="kartometrik-total" style="color:var(--text-bright); font-weight:700;">-</span></span>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Empty state -->
+        <div class="empty-state" id="kartometrik-empty">
+          <i class="fa-solid fa-table-cells-column-lock"></i>
+          Tidak ada data titik kartometrik yang berhasil diekstraksi.
+          <div style="font-size:0.78rem; margin-top:6px;">Tabel koordinat batas desa tidak ditemukan atau tidak terbaca.</div>
+        </div>
+        <!-- Table -->
+        <div class="table-wrap">
+          <table class="kartometrik-table">
+            <thead>
+              <tr>
+                <th style="width:50px; text-align:center;">No</th>
+                <th style="width:120px;">Kode Titik</th>
+                <th>Lintang</th>
+                <th>Bujur</th>
+                <th>X (UTM)</th>
+                <th>Y (UTM)</th>
+              </tr>
+            </thead>
+            <tbody id="kartometrik-tbody">
+              <!-- Rendered by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </section>
+  <!-- /results-section -->
+
+</main>
+
+<!-- ================================================================
+     PROGRESS MODAL
+     ================================================================ -->
+<div class="modal-overlay hidden" id="progress-modal">
+  <div class="modal-card">
+    <div class="progress-orb" id="progress-orb">
+      <i class="fa-solid fa-map-location-dot"></i>
+    </div>
+    <div class="modal-title">Audit Peta Batas Desa</div>
+    <div class="modal-sub">Sistem sedang menganalisis komponen peta secara otomatis...</div>
+
+    <!-- Progress bar -->
+    <div class="prog-bar-track">
+      <div class="prog-bar-fill" id="prog-fill" style="width:0%;"></div>
+    </div>
+    <div class="prog-percent" id="prog-pct">0%</div>
+
+    <!-- Steps -->
+    <div id="progress-steps">
+      <!-- Step 0 -->
+      <div class="step-item">
+        <div class="step-dot pending" id="step-dot-0">1</div>
+        <div>
+          <div class="step-label">Preprocessing</div>
+          <div class="step-desc">Konversi file → gambar, normalisasi resolusi...</div>
+        </div>
+      </div>
+      <!-- Step 1 -->
+      <div class="step-item">
+        <div class="step-dot pending" id="step-dot-1">2</div>
+        <div>
+          <div class="step-label">OCR &amp; Ekstraksi Teks</div>
+          <div class="step-desc">Membaca teks dari peta menggunakan Tesseract OCR...</div>
+        </div>
+      </div>
+      <!-- Step 2 -->
+      <div class="step-item">
+        <div class="step-dot pending" id="step-dot-2">3</div>
+        <div>
+          <div class="step-label">Deteksi Layout</div>
+          <div class="step-desc">Mendeteksi region judul, legenda, inset, body peta...</div>
+        </div>
+      </div>
+      <!-- Step 3 -->
+      <div class="step-item">
+        <div class="step-dot pending" id="step-dot-3">4</div>
+        <div>
+          <div class="step-label">Computer Vision</div>
+          <div class="step-desc">Deteksi arah utara, skala grafis, grid, batas administrasi...</div>
+        </div>
+      </div>
+      <!-- Step 4 -->
+      <div class="step-item">
+        <div class="step-dot pending" id="step-dot-4">5</div>
+        <div>
+          <div class="step-label">Validasi 16 Komponen</div>
+          <div class="step-desc">Rule-based matching seluruh komponen wajib Template BIG...</div>
+        </div>
+      </div>
+      <!-- Step 5 -->
+      <div class="step-item">
+        <div class="step-dot pending" id="step-dot-5">6</div>
+        <div>
+          <div class="step-label">Ekstraksi Titik Kartometrik</div>
+          <div class="step-desc">Membaca tabel koordinat titik batas desa...</div>
+        </div>
+      </div>
+      <!-- Step 6 -->
+      <div class="step-item">
+        <div class="step-dot pending" id="step-dot-6">7</div>
+        <div>
+          <div class="step-label">Generate Laporan</div>
+          <div class="step-desc">Menyusun statistik kelengkapan dan laporan akhir...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     FOOTER
+     ================================================================ -->
+<footer class="app-footer">
+  <div class="container">
+    Audit Peta Batas Desa v1.0 — Berbasis Template BIG | Dikembangkan dalam ekosistem Veridoc
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
