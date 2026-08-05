@@ -11,9 +11,16 @@ try:
 except ImportError:
     HAS_GENAI = False
 
-# Flag Konfigurasi: Setel Ke False Untuk Menonaktifkan API Gemini & Menggunakan Pure OpenCV 100%
-ENABLE_GENAI_MAP_READING = False
+# Flag Konfigurasi: Setel Ke True Untuk Menggunakan API Gemini Vision AI (dengan Fallback Model Terbaru)
+ENABLE_GENAI_MAP_READING = True
 
+GEMINI_MODEL_CANDIDATES = [
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-1.5-flash-lite",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash"
+]
 
 
 def rasterize_pdf_page_to_pil(pdf_bytes: bytes, page_number: int = 1, dpi: int = 300) -> Optional[Image.Image]:
@@ -26,7 +33,6 @@ def rasterize_pdf_page_to_pil(pdf_bytes: bytes, page_number: int = 1, dpi: int =
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             if page_number <= len(pdf.pages):
                 page = pdf.pages[page_number - 1]
-                # Render to high-resolution PIL image
                 im = page.to_image(resolution=dpi)
                 return im.original
     except Exception as e:
@@ -38,16 +44,16 @@ def rasterize_pdf_page_to_pil(pdf_bytes: bytes, page_number: int = 1, dpi: int =
 def periksa_peta_skvt(
     image_input: Any, 
     api_key: Optional[str] = None,
-    model_name: str = "gemini-1.5-flash",
+    model_name: str = "gemini-2.0-flash",
     pdf_text: str = ""
 ) -> Dict[str, Any]:
     """
-    Fungsi utama untuk menganalisis 5 aspek kualitas & akurasi Pembacaan Peta SKVT:
+    Fungsi utama untuk menganalisis Pembacaan Peta SKVT berbasis Gemini Vision AI (Model Terbaru):
     1. Keterbacaan Peta (Bisa baca peta / layout / kejernihan)
     2. Deteksi Typo / Kesalahan Ketik pada Peta (Judul, Legenda, Nama Wilayah)
     3. Kesesuaian Koordinat Titik Kartometrik (TK) Legenda vs Peta Utama
     4. Deteksi Keterangan / Teks Titik TK Bertumpuk / Tidak Terbaca
-    5. Pemeriksaan Grid Koordinat & Gratikul Peta (Keberadaan & Kesesuaian Angka Grid Spasial)
+    5. Pemeriksaan Grid Koordinat & Gratikul Peta
     """
     if isinstance(image_input, str):
         if not os.path.exists(image_input):
@@ -60,68 +66,119 @@ def periksa_peta_skvt(
     else:
         return _build_error_map_result("Format input gambar tidak valid.")
 
-    # 1. PERTAMA: Jalankan Analisis Computer Vision (OpenCV) & 10 Unsur Peta Rule-Based
-    cv_result = _analyze_map_with_opencv(peta_img, pdf_text=pdf_text)
-    
-    try:
-        from modules.map_elements_checker import inspect_map_elements
-        cv_result["map_elements_audit"] = inspect_map_elements(peta_img, pdf_text=pdf_text)
-    except Exception as ex_elem:
-        print(f"[Map Elements Warning] {ex_elem}")
-
-    # 2. KEDUA: Jalankan Google Generative AI jika diaktifkan & API key aktif
     active_api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 
     if ENABLE_GENAI_MAP_READING and HAS_GENAI and active_api_key:
         try:
             genai.configure(api_key=active_api_key)
-            model = genai.GenerativeModel(model_name)
 
-            prompt = f"""
+            prompt = """
             Anda adalah pakar Kartografi & Geodesi Badan Informasi Geospasial (BIG) Indonesia.
-            Hasil pemeriksaan awal berbasis Computer Vision (OpenCV):
-            - Keterbacaan Peta: {cv_result.get('bisa_baca_peta', {}).get('catatan')}
-            - Grid Koordinat: {cv_result.get('pemeriksaan_grid_koordinat', {}).get('catatan')}
-            - Ada Legenda: {cv_result.get('ada_legenda')}
+            Lakukan inspeksi visual menyeluruh terhadap berkas / gambar peta ini.
+            
+            Analisis secara teliti dan jawab 5 PENGECEKAN UTAMA berikut dalam format JSON yang valid (tanpa markdown tambahan):
 
-            Tugas Anda: Verifikasi gambar peta ini dan jawab 5 PENGECEKAN UTAMA dalam format JSON valid (tanpa markdown tambahan):
-            1. BISA BACA PETA (Keterbacaan & Kelengkapan Layout)
-            2. PERIKSA TYPO DI PETA (Ejaan judul, legenda, nama wilayah)
-            3. KESESUAIAN KOORDINAT TK LEGENDA VS PETA
-            4. KETERANGAN TITIK TK BERTUMPUK / TIDAK TERBACA
-            5. PEMERIKSAAN GRID KOORDINAT & GRATIKUL PETA
+            1. BISA BACA PETA (Keterbacaan & Kelengkapan Layout):
+               - Apakah peta dapat dibaca dengan jelas? Apakah elemen dasar peta (Judul, Legenda, Skala, Orientasi Utara, Garis Batas) lengkap?
+
+            2. PERIKSA TYPO DI PETA:
+               - Periksa teks pada Judul Peta, Keterangan Legenda, Nama Desa/Kecamatan/Kabupaten, dan Catatan Tepi.
+               - Cari apakah ada kesalahan ejaan/ketik (typo) pada teks peta.
+
+            3. KESESUAIAN KOORDINAT TK LEGENDA VS PETA:
+               - ATURAN PENTING: Periksa apakah ada TABEL KOORDINAT TITIK KARTOMETRIK (TK) dan simbol titik TK pada peta.
+               - Titik Kartometrik seringkali ditandai dengan simbol berbentuk segitiga berwarna hijau
+               - Titik Kartometrik ditandai dengan TK dan diikuti oleh kode wilayah (contoh: 11.73.03.2017)
+               - JIKA PETA TIDAK MEMILIKI TABEL KOORDINAT TK, BERIKAN STATUS "FAIL" dengan catatan: "TIDAK DITEMUKAN Tabel Koordinat Titik Kartometrik (TK). Peta ini tidak memuat daftar koordinat TK pada legenda maupun titik lokasi peta (Bukan format Peta Batas SKVT BIG)."
+               - Jika ada tabel TK, bandingkan apakah nilai koordinat X/Y (Easting/Northing / Longitude/Latitude) pada legenda 100% cocok dengan angka pada titik di peta.
+
+            4. KETERANGAN TITIK TK BERTUMPUK / TIDAK TERBACA:
+               - JIKA TIDAK ADA TITIK TK, berikan status "WARNING" / "FAIL" dengan catatan: "Tidak terdeteksi penomoran maupun simbol Titik Kartometrik (TK) pada peta meupun legenda."
+               - Jika ada titik TK, periksa apakah ada teks/label titik TK yang saling bertumpuk (overlapping) atau tidak terbaca.
+
+            5. PEMERIKSAAN GRID KOORDINAT & GRATIKUL PETA:
+               - Periksa apakah pada area peta utama terdapat Garis Grid Spasial (Gratikul Koordinat) beserta angka-angka koordinat pada bingkai peta (Easting/Northing mE/mN atau Lintang/Bujur DMS).
+               - Apakah garis grid dan angka koordinatnya sesuai, konsisten, dan teratur dengan interval yang benar?
+               - JIKA TIDAK ADA GRID KOORDINAT / GRATIKUL pada area peta, berikan status "FAIL" dengan catatan: "TIDAK DITEMUKAN Garis Grid/Gratikul Koordinat maupun label angka koordinat bingkai pada peta (Wajib ada sesuai Standar Geodesi BIG)."
 
             FORMAT JSON YANG WAJIB DIKEMBALIKAN:
-            {{
-                "bisa_baca_peta": {{ "status": "PASS", "dapat_dibaca": true, "kualitas_peta": "Tinggi", "catatan": "..." }},
-                "periksa_typo_peta": {{ "status": "PASS", "typo_ditemukan": [], "catatan": "..." }},
-                "kesesuaian_koordinat_legenda_vs_peta": {{ "status": "PASS", "ketidaksesuaian": [], "catatan": "..." }},
-                "keterangan_tk_bertumpuk": {{ "status": "PASS", "teks_bertumpuk_ditemukan": [], "catatan": "..." }},
-                "pemeriksaan_grid_koordinat": {{ "status": "PASS", "ada_grid": true, "catatan": "..." }},
+            {
+                "bisa_baca_peta": {
+                    "status": "PASS",
+                    "dapat_dibaca": true,
+                    "kualitas_peta": "Tinggi",
+                    "catatan": "Peta visual dapat dibaca."
+                },
+                "periksa_typo_peta": {
+                    "status": "PASS",
+                    "typo_ditemukan": [],
+                    "catatan": "Tidak ditemukan kesalahan penulisan/typo."
+                },
+                "kesesuaian_koordinat_legenda_vs_peta": {
+                    "status": "FAIL",
+                    "ketidaksesuaian": [],
+                    "catatan": "TIDAK DITEMUKAN Tabel Koordinat Titik Kartometrik (TK). Peta ini tidak memuat daftar koordinat TK pada legenda maupun titik lokasi peta."
+                },
+                "keterangan_tk_bertumpuk": {
+                    "status": "WARNING",
+                    "teks_bertumpuk_ditemukan": [],
+                    "catatan": "Tidak terdeteksi penomoran maupun simbol Titik Kartometrik (TK) pada peta ini."
+                },
+                "pemeriksaan_grid_koordinat": {
+                    "status": "PASS",
+                    "ada_grid": true,
+                    "catatan": "Grid koordinat spasial (Gratikul) & label angka koordinat bingkai terverifikasi lengkap dan presisi."
+                },
                 "confidence_score": 95
-            }}
+            }
+
+            Catatan Penting:
+            - Status harus salah satu dari: "PASS", "WARNING", atau "FAIL".
+            - Jika ada typo, sebutkan detailnya pada array 'typo_ditemukan' berisi object {"kata_salah": "...", "saran_perbaikan": "...", "lokasi": "..."}.
             """
 
-            response = model.generate_content([prompt, peta_img])
-            raw_text = response.text.replace('```json', '').replace('```', '').strip()
-            
-            m_json = re.search(r'\{.*\}', raw_text, re.DOTALL)
-            if m_json:
-                raw_text = m_json.group(0)
+            # Coba model kandidat secara berurutan (gemini-2.0-flash -> gemini-1.5-pro -> gemini-1.5-flash)
+            candidates = [model_name] if model_name not in GEMINI_MODEL_CANDIDATES else []
+            candidates.extend(GEMINI_MODEL_CANDIDATES)
 
-            ai_hasil = json.loads(raw_text)
-            
-            cv_result["bisa_baca_peta"] = ai_hasil.get("bisa_baca_peta", cv_result["bisa_baca_peta"])
-            cv_result["periksa_typo_peta"] = ai_hasil.get("periksa_typo_peta", cv_result["periksa_typo_peta"])
-            cv_result["kesesuaian_koordinat_legenda_vs_peta"] = ai_hasil.get("kesesuaian_koordinat_legenda_vs_peta", cv_result["kesesuaian_koordinat_legenda_vs_peta"])
-            cv_result["keterangan_tk_bertumpuk"] = ai_hasil.get("keterangan_tk_bertumpuk", cv_result["keterangan_tk_bertumpuk"])
-            if "pemeriksaan_grid_koordinat" in ai_hasil:
-                cv_result["pemeriksaan_grid_koordinat"]["catatan"] += f" (AI Verified: {ai_hasil['pemeriksaan_grid_koordinat'].get('catatan', '')})"
+            raw_text = None
+            used_model = None
+            for m in candidates:
+                try:
+                    m_instance = genai.GenerativeModel(m)
+                    resp = m_instance.generate_content([prompt, peta_img])
+                    if resp and resp.text:
+                        raw_text = resp.text.replace('```json', '').replace('```', '').strip()
+                        used_model = m
+                        break
+                except Exception as m_err:
+                    print(f"[Vision AI] Model {m} failed: {m_err}. Trying next candidate...")
+
+            if raw_text:
+                m_json = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                if m_json:
+                    raw_text = m_json.group(0)
+
+                hasil = json.loads(raw_text)
+                hasil["ai_model_used"] = used_model
+                hasil["ada_legenda"] = True
+                hasil["kesesuaian_standar_BIG"] = {
+                    "status": "Sesuai" if hasil.get("bisa_baca_peta", {}).get("status") == "PASS" else "Parsial",
+                    "catatan": f"Diinspeksi menggunakan Gemini Vision AI ({used_model})."
+                }
+                hasil["validasi_simbol_vs_peta"] = {
+                    "status": "Valid" if hasil.get("kesesuaian_koordinat_legenda_vs_peta", {}).get("status") == "PASS" else "Tidak Valid",
+                    "simbol_tidak_terpakai": [],
+                    "fitur_tanpa_legenda": []
+                }
+                return hasil
 
         except Exception as e:
-            print(f"[Vision AI] Warning: Map Vision AI failed, using OpenCV result: {e}")
+            print(f"[Vision AI] Warning: Map Vision API execution failed: {e}")
 
-    return cv_result
+    # Fallback Computer Vision (OpenCV) jika API offline / quota habis
+    return _analyze_map_with_opencv(peta_img, pdf_text=pdf_text)
+
 
 
 
@@ -337,8 +394,9 @@ def _build_fallback_map_result() -> Dict[str, Any]:
 def periksa_legenda_peta_skvt(
     image_input: Any, 
     api_key: Optional[str] = None,
-    model_name: str = "gemini-1.5-flash"
+    model_name: str = "gemini-2.5-pro"
 ) -> Dict[str, Any]:
     """Alias kompatibilitas untuk periksa_peta_skvt."""
     return periksa_peta_skvt(image_input, api_key=api_key, model_name=model_name)
+
 

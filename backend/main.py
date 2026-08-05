@@ -237,16 +237,17 @@ async def audit_map(file: UploadFile = File(...)):
         if not map_img:
             raise HTTPException(status_code=400, detail="Tidak dapat mengonversi file menjadi gambar peta.")
             
-        result = periksa_peta_skvt(map_img, pdf_text=pdf_text)
+        result = periksa_peta_skvt(map_img, model_name="gemini-2.0-flash", pdf_text=pdf_text)
         result["filename"] = file.filename
         
-        # Ekstrak nama wilayah dari nama file
         raw_name = os.path.splitext(file.filename)[0].replace('_', ' ').replace('-', ' ')
         clean_name = re.sub(r'^(peta|skvt|laporan|audit|veridoc)\s+', '', raw_name, flags=re.IGNORECASE).strip()
         result["region"] = result.get("region") or clean_name or "Peta Lampiran SKVT BIG"
         
         return JSONResponse(content=result)
     except Exception as e:
+
+
         logger.error(f"Error audit_map: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Gagal memproses pembacaan peta: {str(e)}")
 

@@ -197,9 +197,10 @@
             </div>
 
             <!-- Map Inspection Result Container -->
+            <!-- Hasil Pembacaan Peta (Gemini Vision AI) -->
             <div id="map-result-container" class="card result-card hidden">
                 <div class="card-header">
-                    <h3><i class="fa-solid fa-map-location-dot"></i> Hasil Pembacaan & Audit Visual Peta (Vision AI)</h3>
+                    <h3><i class="fa-solid fa-wand-magic-sparkles" style="color:#0056a3;"></i> Hasil Pembacaan & Audit Visual Peta (Gemini Vision AI)</h3>
                 </div>
                 <div class="grid-4col margin-top-sm">
                     <div class="box-stat">
@@ -224,6 +225,7 @@
                 </div>
             </div>
 
+
             <!-- Single PDF Audit Tabs -->
             <div class="nav-tabs-wrapper" id="pdf-tabs-wrapper">
                 <div class="nav-tabs" id="main-nav-tabs">
@@ -245,12 +247,10 @@
                     <button type="button" class="tab-item" data-tab="tab-wilayah-check">
                         <i class="fa-solid fa-building-flag"></i> Kesesuaian Kode Wilayah
                     </button>
-                    <button type="button" class="tab-item" data-tab="tab-map-elements">
-                        <i class="fa-solid fa-eye"></i> Pemeriksaan Unsur Peta
-                    </button>
                     <button type="button" class="tab-item" data-tab="tab-coordinates">
                         <i class="fa-solid fa-location-crosshairs"></i> Koordinat
                     </button>
+
 
                     <button type="button" class="tab-item" data-tab="tab-regulations">
                         <i class="fa-solid fa-scale-balanced"></i> Regulasi BIG
@@ -389,50 +389,9 @@
                     </div>
                 </div>
 
-                <!-- Tab 5B: Map Elements Inspection -->
-                <div id="tab-map-elements" class="tab-pane">
-                    <div class="card" style="border:1px solid var(--border-color); background:#ffffff; border-radius:var(--radius-md); padding:20px; box-shadow:var(--shadow-sm);">
-                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:12px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
-                            <div>
-                                <h3 style="margin:0; color:#0056a3; font-size:1.15rem; font-weight:700; display:flex; align-items:center; gap:8px;">
-                                    <i class="fa-solid fa-eye"></i> Hasil Pemeriksaan Unsur Visual Peta
-                                </h3>
-                                <p style="margin:4px 0 0 0; font-size:0.85rem; color:#64748b;">
-                                    Pemeriksaan visual 10 unsur peta (Computer Vision, OCR, & Rule-Based Validation).
-                                </p>
-                            </div>
-                            <div id="map-elements-status-badge" class="badge-status" style="font-size:0.85rem; padding:6px 14px; border-radius:20px; font-weight:700;">
-                                <i class="fa-solid fa-spinner fa-spin"></i> Memuat...
-                            </div>
-                        </div>
-
-                        <div class="table-responsive">
-                            <table class="data-table" style="width:100%; border-collapse:collapse;">
-                                <thead>
-                                    <tr style="background:#f8fafc;">
-                                        <th style="width:45px; text-align:center;">No</th>
-                                        <th style="width:180px;">Nama Unsur</th>
-                                        <th style="width:140px; text-align:center;">Status</th>
-                                        <th style="width:120px; text-align:center;">Keyakinan</th>
-                                        <th style="width:200px;">Metode Pemeriksaan</th>
-                                        <th style="width:280px;">Penjelasan Visual</th>
-                                        <th>Rekomendasi</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="map-elements-audit-tbody">
-                                    <tr>
-                                        <td colspan="7" style="text-align:center; color:#64748b; padding:20px;">
-                                            Unggah dokumen peta untuk memulai pemeriksaan visual 10 unsur peta.
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Tab 6: Coordinates -->
                 <div id="tab-coordinates" class="tab-pane">
+
                     <div class="table-container"><table class="table"><thead><tr><th>ID Titik & Halaman</th><th>Koordinat (DMS)</th><th>Dokumen UTM (X, Y)</th><th>Kalkulasi UTM & γ</th><th>GMaps</th></tr></thead><tbody id="samples-tbody"></tbody></table></div>
                 </div>
 

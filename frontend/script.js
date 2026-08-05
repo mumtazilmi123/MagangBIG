@@ -1128,10 +1128,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // ================================================================
     // RENDER: Map Vision Audit Results (4 Pengecekan Peta)
     // ================================================================
+    // RENDER: Map Vision Audit Results (Gemini Vision AI)
+    // ================================================================
     function renderMapResults(data) {
         const getBadgeHtml = (status) => {
-            if (status === 'PASS') return `<span class="badge badge-success" style="font-weight:700; padding:6px 14px; border-radius:20px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;"><i class="fa-solid fa-circle-check"></i> Sesuai / PASS</span>`;
-            if (status === 'WARNING') return `<span class="badge badge-warning" style="font-weight:700; padding:6px 14px; border-radius:20px; background:#fffbeb; color:#d97706; border:1px solid #fde68a;"><i class="fa-solid fa-triangle-exclamation"></i> Warning</span>`;
+            if (status === 'PASS' || status === 'PASS_COMPLETELY') {
+                return `<span class="badge badge-success" style="font-weight:700; padding:6px 14px; border-radius:20px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;"><i class="fa-solid fa-circle-check"></i> Sesuai / PASS</span>`;
+            }
+            if (status === 'WARNING') {
+                return `<span class="badge badge-warning" style="font-weight:700; padding:6px 14px; border-radius:20px; background:#fffbeb; color:#d97706; border:1px solid #fde68a;"><i class="fa-solid fa-triangle-exclamation"></i> Warning</span>`;
+            }
             return `<span class="badge badge-danger" style="font-weight:700; padding:6px 14px; border-radius:20px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca;"><i class="fa-solid fa-circle-xmark"></i> FAIL / Tidak Sesuai</span>`;
         };
 
@@ -1150,7 +1156,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const bOverlap = document.getElementById('map-stat-overlap');
         if (bOverlap) bOverlap.innerHTML = getBadgeHtml(overlap.status || 'PASS');
 
-        // Top Summary Cards Update for Map Mode
         const regEl = document.getElementById('res-region');
         if (regEl) {
             let regionName = data.region;
@@ -1163,10 +1168,10 @@ document.addEventListener('DOMContentLoaded', function() {
             regEl.textContent = regionName || 'Peta Lampiran SKVT BIG';
         }
 
+        const modelUsed = data.ai_model_used || "gemini-2.0-flash";
         const anomEl = document.getElementById('res-anomalies');
-        if (anomEl) anomEl.textContent = '5 Parameter Peta';
+        if (anomEl) anomEl.textContent = `5 Parameter (${modelUsed})`;
 
-        // Hide irrelevant PDF-only stat cards (Total Titik Spasial & Akurasi CE95) in Map Mode
         const cardGreen = document.querySelector('.stat-card-green');
         if (cardGreen) cardGreen.classList.add('hidden');
         const cardPurple = document.querySelector('.stat-card-purple');
@@ -1184,9 +1189,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const exporterSec = document.getElementById('exporter-section');
         if (exporterSec) exporterSec.classList.add('hidden');
 
-        // Detailed Findings HTML - High Contrast Dark Text for White Card Backgrounds
         let detailsHtml = `
             <div style="display:flex; flex-direction:column; gap:16px; margin-top:16px;">
+                <div style="font-size:0.85rem; background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:8px 14px; border-radius:8px; font-weight:600; display:flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Model Gemini AI Aktif: <strong>${modelUsed}</strong> (Multimodal Visual Inspector)
+                </div>
+
                 <!-- 1. Keterbacaan Peta -->
                 <div class="card" style="padding:20px; border-radius:12px; background:#ffffff; border:1px solid var(--border-color); border-left:5px solid ${baca.status === 'PASS' ? '#059669' : '#dc2626'}; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
                     <h4 style="margin:0 0 8px 0; color:var(--text-bright); font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:8px;">
@@ -1268,6 +1276,8 @@ document.addEventListener('DOMContentLoaded', function() {
             resultsSection.scrollIntoView({ behavior: 'smooth' });
         }
     }
+
+
 
     // ================================================================
     // LEAFLET MAP
