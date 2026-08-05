@@ -1,5 +1,5 @@
 // ================================================================
-// AUDIT PETA BATAS DESA — Dashboard JS Engine
+// PEMERIKSAAN DOKUMEN PETA BATAS DESA — Document Inspection Engine
 // ================================================================
 
 'use strict';
@@ -8,30 +8,47 @@
 const API_BASE = 'http://localhost:8001';
 let currentAuditData = null;
 let currentFilter = 'all';
+let selectedFile = null;
+let currentBlobUrl = null;
+let currentZoom = 1.0;
 
-// ── DOM References (resolved after DOMContentLoaded) ──
+// ── DOM Elements ──
 let dropZone, fileInput, browseBtn, processBtn, fileBadge, fileNameSpan,
     btnRemoveFile, errorBox, progressModal, progressBar, progressPct,
-    resultsSection;
+    uploadSection, resultsSection, docPreviewIframe, docPreviewImg,
+    viewerPlaceholder, btnZoomIn, btnZoomOut, btnZoomReset, btnOpenNewTab,
+    btnReupload;
 
 // ================================================================
 // INIT
 // ================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    dropZone     = document.getElementById('drop-zone');
-    fileInput    = document.getElementById('file-input');
-    browseBtn    = document.getElementById('btn-browse');
-    processBtn   = document.getElementById('btn-process');
-    fileBadge    = document.getElementById('file-selected-badge');
-    fileNameSpan = document.getElementById('file-name-display');
-    btnRemoveFile= document.getElementById('btn-remove-file');
-    errorBox     = document.getElementById('error-box');
-    progressModal= document.getElementById('progress-modal');
-    progressBar  = document.getElementById('prog-fill');
-    progressPct  = document.getElementById('prog-pct');
-    resultsSection=document.getElementById('results-section');
+    // Bind elements
+    dropZone          = document.getElementById('drop-zone');
+    fileInput         = document.getElementById('file-input');
+    browseBtn         = document.getElementById('btn-browse');
+    processBtn        = document.getElementById('btn-process');
+    fileBadge         = document.getElementById('file-selected-badge');
+    fileNameSpan      = document.getElementById('file-name-display');
+    btnRemoveFile     = document.getElementById('btn-remove-file');
+    errorBox          = document.getElementById('error-box');
+    progressModal     = document.getElementById('progress-modal');
+    progressBar       = document.getElementById('prog-fill');
+    progressPct       = document.getElementById('prog-pct');
+    uploadSection     = document.getElementById('upload-section');
+    resultsSection    = document.getElementById('results-section');
 
-    // Dropzone events
+    docPreviewIframe  = document.getElementById('doc-preview-iframe');
+    docPreviewImg     = document.getElementById('doc-preview-img');
+    viewerPlaceholder = document.getElementById('viewer-placeholder');
+
+    btnZoomIn         = document.getElementById('btn-zoom-in');
+    btnZoomOut        = document.getElementById('btn-zoom-out');
+    btnZoomReset      = document.getElementById('btn-zoom-reset');
+    btnOpenNewTab     = document.getElementById('btn-open-newtab');
+    btnReupload      = document.getElementById('btn-reupload');
+
+    // Dropzone Events
     dropZone.addEventListener('click', () => fileInput.click());
     browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
 
@@ -58,7 +75,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     processBtn.addEventListener('click', startAudit);
 
-    // Filter buttons
+    if (btnReupload) {
+        btnReupload.addEventListener('click', () => {
+            resultsSection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
+
+    // Zoom Controls
+    if (btnZoomIn) {
+        btnZoomIn.addEventListener('click', () => {
+            currentZoom += 0.25;
+            applyZoom();
+        });
+    }
+    if (btnZoomOut) {
+        btnZoomOut.addEventListener('click', () => {
+            if (currentZoom > 0.5) {
+                currentZoom -= 0.25;
+                applyZoom();
+            }
+        });
+    }
+    if (btnZoomReset) {
+        btnZoomReset.addEventListener('click', () => {
+            currentZoom = 1.0;
+            applyZoom();
+        });
+    }
+    if (btnOpenNewTab) {
+        btnOpenNewTab.addEventListener('click', () => {
+            if (currentBlobUrl) window.open(currentBlobUrl, '_blank');
+        });
+    }
+
+    // Filter Buttons
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -68,7 +120,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Health check on load
+    // Tab Buttons
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            const target = document.getElementById(btn.dataset.tab);
+            if (target) target.classList.add('active');
+        });
+    });
+
+    // Health Check
     checkApiHealth();
 });
 
@@ -76,45 +139,35 @@ document.addEventListener('DOMContentLoaded', () => {
 // HEALTH CHECK
 // ================================================================
 async function checkApiHealth() {
+    const dot  = document.getElementById('api-status-dot');
+    const text = document.getElementById('api-status-text');
     try {
         const res = await fetch(`${API_BASE}/api/peta/health`, { method: 'GET' });
         if (res.ok) {
-            setApiStatus(true);
+            if (dot) dot.style.background = '#10B981';
+            if (text) text.textContent = 'Server Online (Port 8001)';
         } else {
-            setApiStatus(false);
+            if (dot) dot.style.background = '#EF4444';
+            if (text) text.textContent = 'Server Offline';
         }
     } catch {
-        setApiStatus(false);
-    }
-}
-
-function setApiStatus(online) {
-    const dot  = document.getElementById('api-status-dot');
-    const text = document.getElementById('api-status-text');
-    if (!dot || !text) return;
-    if (online) {
-        dot.style.background = '#10B981';
-        text.textContent = 'Server Online';
-    } else {
-        dot.style.background = '#EF4444';
-        text.textContent = 'Server Offline — Jalankan backend terlebih dahulu';
+        if (dot) dot.style.background = '#EF4444';
+        if (text) text.textContent = 'Server Offline — Jalankan backend terlebih dahulu';
     }
 }
 
 // ================================================================
-// FILE HANDLING
+// FILE HANDLING & PREVIEW
 // ================================================================
-let selectedFile = null;
-
 function handleFileSelected(file) {
     const ext = file.name.split('.').pop().toLowerCase();
     const allowed = ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'tif'];
     if (!allowed.includes(ext)) {
-        showError(`Format file tidak didukung: .${ext}. Gunakan PDF, JPG, PNG, atau TIFF.`);
+        showError(`Format berkas tidak didukung: .${ext}. Gunakan PDF, JPG, PNG, atau TIFF.`);
         return;
     }
     if (file.size > 50 * 1024 * 1024) {
-        showError('Ukuran file melebihi batas 50 MB.');
+        showError('Ukuran berkas melebihi batas 50 MB.');
         return;
     }
 
@@ -123,13 +176,46 @@ function handleFileSelected(file) {
     fileNameSpan.textContent = file.name + ` (${formatSize(file.size)})`;
     fileBadge.classList.remove('hidden');
     processBtn.disabled = false;
+
+    // Create Blob URL for document viewer
+    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+    currentBlobUrl = URL.createObjectURL(file);
+    setupDocumentViewer(file, currentBlobUrl);
 }
 
 function clearFile() {
     selectedFile = null;
+    if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+        currentBlobUrl = null;
+    }
     fileInput.value = '';
     fileBadge.classList.add('hidden');
     processBtn.disabled = true;
+}
+
+function setupDocumentViewer(file, blobUrl) {
+    const ext = file.name.split('.').pop().toLowerCase();
+
+    if (viewerPlaceholder) viewerPlaceholder.classList.add('hidden');
+    docPreviewIframe.classList.add('hidden');
+    docPreviewImg.classList.add('hidden');
+
+    if (ext === 'pdf') {
+        docPreviewIframe.src = blobUrl;
+        docPreviewIframe.classList.remove('hidden');
+    } else {
+        docPreviewImg.src = blobUrl;
+        docPreviewImg.classList.remove('hidden');
+    }
+    currentZoom = 1.0;
+    applyZoom();
+}
+
+function applyZoom() {
+    if (docPreviewImg) {
+        docPreviewImg.style.transform = `scale(${currentZoom})`;
+    }
 }
 
 function formatSize(bytes) {
@@ -142,13 +228,13 @@ function formatSize(bytes) {
 // AUDIT PROCESS
 // ================================================================
 const STEPS = [
-    { id: 1, label: 'Preprocessing', desc: 'Konversi file → gambar, normalisasi resolusi...' },
-    { id: 2, label: 'OCR & Ekstraksi Teks', desc: 'Membaca teks dari peta menggunakan Tesseract OCR...' },
-    { id: 3, label: 'Deteksi Layout', desc: 'Mendeteksi region judul, legenda, inset, body peta...' },
-    { id: 4, label: 'Computer Vision', desc: 'Mendeteksi arah utara, skala grafis, grid, batas...' },
-    { id: 5, label: 'Validasi Komponen', desc: 'Memeriksa 16 komponen wajib Template BIG...' },
-    { id: 6, label: 'Ekstraksi Titik Kartometrik', desc: 'Membaca tabel koordinat batas desa...' },
-    { id: 7, label: 'Generate Laporan', desc: 'Menyusun laporan audit dan statistik kelengkapan...' },
+    { id: 1, label: 'Preprocessing PDF & Visual' },
+    { id: 2, label: 'Ekstraksi Teks OCR' },
+    { id: 3, label: 'Deteksi Layout & Grid' },
+    { id: 4, label: 'Computer Vision' },
+    { id: 5, label: 'Evaluasi 16 Komponen Wajib' },
+    { id: 6, label: 'Ekstraksi Titik Kartometrik' },
+    { id: 7, label: 'Penyusunan Lembar Audit' },
 ];
 
 async function startAudit() {
@@ -156,22 +242,20 @@ async function startAudit() {
 
     hideError();
     showProgressModal();
-    resultsSection.classList.remove('visible');
 
     const formData = new FormData();
     formData.append('file', selectedFile);
 
-    // Simulate step progression
     let stepIdx = 0;
     const stepTimer = setInterval(() => {
         if (stepIdx < STEPS.length) {
             setStep(stepIdx, 'running');
             if (stepIdx > 0) setStep(stepIdx - 1, 'done');
-            const pct = Math.round((stepIdx / STEPS.length) * 85);
+            const pct = Math.round(((stepIdx + 1) / STEPS.length) * 85);
             setProgress(pct);
             stepIdx++;
         }
-    }, 800);
+    }, 700);
 
     try {
         const res = await fetch(`${API_BASE}/api/peta/audit`, {
@@ -189,22 +273,23 @@ async function startAudit() {
 
         const data = await res.json();
 
-        // Mark all steps done
         STEPS.forEach((_, i) => setStep(i, 'done'));
         setProgress(100);
 
-        await sleep(600);
+        await sleep(500);
         hideProgressModal();
 
         currentAuditData = data;
-        renderDashboard(data);
-        resultsSection.classList.add('visible');
-        resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        renderInspectionWorkspace(data);
+
+        uploadSection.classList.add('hidden');
+        resultsSection.classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
 
     } catch (err) {
         clearInterval(stepTimer);
         hideProgressModal();
-        showError(`Audit gagal: ${err.message || 'Terjadi kesalahan tidak terduga.'}`);
+        showError(`Pemeriksaan gagal: ${err.message || 'Terjadi kesalahan tidak terduga.'}`);
     }
 }
 
@@ -212,10 +297,7 @@ async function startAudit() {
 // PROGRESS MODAL
 // ================================================================
 function showProgressModal() {
-    // Reset steps
-    STEPS.forEach((s, i) => {
-        renderStep(s, i, 'pending');
-    });
+    STEPS.forEach((_, i) => setStep(i, 'pending'));
     setProgress(0);
     progressModal.classList.remove('hidden');
 }
@@ -223,107 +305,116 @@ function hideProgressModal() {
     progressModal.classList.add('hidden');
 }
 function setProgress(pct) {
-    progressBar.style.width = pct + '%';
-    progressPct.textContent = pct + '%';
+    if (progressBar) progressBar.style.width = pct + '%';
+    if (progressPct) progressPct.textContent = pct + '%';
 }
 function setStep(idx, state) {
-    const dot = document.getElementById(`step-dot-${idx}`);
-    if (!dot) return;
-    dot.className = 'step-dot ' + state;
-    if (state === 'done') dot.innerHTML = '<i class="fa-solid fa-check" style="font-size:0.65rem;"></i>';
-    else if (state === 'running') dot.innerHTML = '<i class="fa-solid fa-spinner spin" style="font-size:0.65rem;"></i>';
-    else dot.innerHTML = (idx + 1);
-}
-function renderStep(step, idx, state) {
-    // Created in HTML, just reset
-    const dot = document.getElementById(`step-dot-${idx}`);
-    if (dot) {
-        dot.className = 'step-dot pending';
+    const item = document.getElementById(`step-item-${idx}`);
+    const dot  = document.getElementById(`step-dot-${idx}`);
+    if (!item || !dot) return;
+
+    item.className = 'step-item ' + state;
+    if (state === 'done') {
+        dot.innerHTML = '<i class="fa-solid fa-check"></i>';
+    } else if (state === 'running') {
+        dot.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    } else {
         dot.innerHTML = (idx + 1);
     }
 }
 
 // ================================================================
-// RENDER DASHBOARD
+// RENDER INSPECTION WORKSPACE
 // ================================================================
-function renderDashboard(data) {
-    // Status banner
-    renderBanner(data);
-    // Stat cards
-    renderStatCards(data);
-    // Audit table
+function renderInspectionWorkspace(data) {
+    // Topbar
+    setText('topbar-filename', data.filename || selectedFile?.name || '-');
+    setText('topbar-timestamp', formatTimestamp(data.audit_timestamp));
+
+    // Show print button
+    const btnPrint = document.getElementById('btn-print-report');
+    if (btnPrint) btnPrint.style.display = 'inline-flex';
+
+    // Verification Stamp Card
+    renderStampCard(data);
+
+    // Summary Metrics
+    setText('stat-completeness', (data.completeness_percent || 0).toFixed(1) + '%');
+    setText('stat-found', data.found_count || 0);
+    setText('stat-uncertain', data.uncertain_count || 0);
+    setText('stat-notfound', data.not_found_count || 0);
+
+    // Inspection Matrix Table
     renderAuditTable(data.components || []);
-    // Titik kartometrik
+
+    // Kartometrik Table
     renderTitikKartometrik(data.titik_kartometrik || {});
-    // Reset filter
+
+    // Ensure tab-matriks is active
     currentFilter = 'all';
     document.querySelectorAll('.filter-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.filter === 'all');
     });
 }
 
-// ── Banner ──
-function renderBanner(data) {
-    const banner    = document.getElementById('audit-banner');
-    const icon      = document.getElementById('banner-icon');
-    const filename  = document.getElementById('banner-filename');
-    const status    = document.getElementById('banner-status');
-    const timestamp = document.getElementById('banner-ts');
+// ── Verification Stamp Banner ──
+function renderStampCard(data) {
+    const banner   = document.getElementById('audit-banner');
+    const icon     = document.getElementById('banner-icon');
+    const status   = document.getElementById('banner-status');
+    const summary  = document.getElementById('banner-summary-text');
 
-    const colorMap = {
-        green:  ['audit-banner-green',  'banner-icon-green',  'fa-circle-check'],
-        yellow: ['audit-banner-yellow', 'banner-icon-yellow', 'fa-triangle-exclamation'],
-        red:    ['audit-banner-red',    'banner-icon-red',    'fa-circle-xmark'],
-    };
-    const clr = data.audit_status_color || 'yellow';
-    const [bannerClass, iconClass, iconName] = colorMap[clr] || colorMap.yellow;
+    if (!banner || !status) return;
 
-    banner.className = `audit-banner ${bannerClass} anim-fade-in`;
-    banner.style.display = '';    // ensure visible
-    icon.className   = `banner-icon ${iconClass}`;
-    icon.innerHTML   = `<i class="fa-solid ${iconName}"></i>`;
+    banner.className = 'verification-stamp-card';
 
-    filename.textContent  = data.filename || '-';
-    status.textContent    = data.audit_status_label || data.audit_status || '-';
-    timestamp.textContent = `Waktu Audit: ${formatTimestamp(data.audit_timestamp)}`;
+    if (data.audit_status === 'LAYAK') {
+        banner.classList.add('stamp-layak');
+        if (icon) icon.innerHTML = '<i class="fa-solid fa-square-check"></i>';
+        status.textContent = '✓ DOKUMEN PETA LAYAK (MEMENUHI TEMPLATE BIG)';
+        status.style.color = 'var(--green-text)';
+    } else if (data.audit_status === 'PERLU_PERBAIKAN') {
+        banner.classList.add('stamp-perbaikan');
+        if (icon) icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+        status.textContent = '⚠ PERLU PERBAIKAN / REVISI KOMPONEN';
+        status.style.color = 'var(--amber-text)';
+    } else {
+        banner.classList.add('stamp-sesuai');
+        if (icon) icon.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
+        status.textContent = '✗ DOKUMEN TIDAK SESUAI TEMPLATE';
+        status.style.color = 'var(--red-text)';
+    }
+
+    if (summary) summary.textContent = data.summary || 'Audit komponen kartografi selesai.';
 }
 
-// ── Stat Cards ──
-function renderStatCards(data) {
-    setText('stat-completeness', (data.completeness_percent || 0).toFixed(1) + '%');
-    setText('stat-found',        data.found_count     || 0);
-    setText('stat-notfound',     data.not_found_count || 0);
-    setText('stat-uncertain',    data.uncertain_count || 0);
-    setText('stat-confidence',   ((data.avg_confidence || 0) * 100).toFixed(0) + '%');
-    setText('stat-total',        data.total_components || 0);
-}
-
-// ── Audit Table ──
+// ── Inspection Table ──
 function renderAuditTable(components) {
     const tbody = document.getElementById('audit-tbody');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
     components.forEach((comp, idx) => {
-        // Main row
         const tr = document.createElement('tr');
-        tr.className = comp.is_optional ? 'optional-row' : '';
         tr.dataset.status   = comp.status;
         tr.dataset.optional = comp.is_optional ? '1' : '0';
+
         tr.innerHTML = `
-            <td class="col-no">${comp.no}</td>
-            <td class="col-component">
-                <div style="font-weight:600; color:var(--text-bright); margin-bottom:2px;">${esc(comp.name)}</div>
-                ${comp.is_optional ? '<span style="font-size:0.70rem; color:var(--text-muted);">(Opsional)</span>' : ''}
+            <td class="th-no" style="font-weight:700; color:var(--text-muted);">${comp.no}</td>
+            <td class="th-comp">
+                <div style="font-weight:700; color:var(--text-main);">${esc(comp.name)}</div>
+                ${comp.is_optional ? '<span style="font-size:0.70rem; color:var(--text-muted); font-style:italic;">(Opsional)</span>' : ''}
             </td>
-            <td class="col-status">${renderBadge(comp.status)}</td>
-            <td class="col-conf">${renderConfBar(comp.confidence)}</td>
-            <td class="col-method"><span class="method-tag">${esc(comp.method || '-')}</span></td>
-            <td class="col-evidence"><span class="evidence-text">${esc(comp.evidence || '-')}</span></td>
-            <td class="col-value"><span class="value-text">${esc(comp.value || '-')}</span></td>
-            <td class="col-notes"><span class="notes-text">${esc(comp.notes || '')}</span></td>
-            <td class="col-expand">
-                <button class="btn-expand" id="expand-btn-${idx}" onclick="toggleDetail(${idx})" title="Lihat Detail">
-                    <i class="fa-solid fa-chevron-down"></i> Detail
+            <td class="th-status">${renderBadge(comp.status)}</td>
+            <td class="th-conf" style="text-align:center;">${renderConfBadge(comp.confidence)}</td>
+            <td class="th-method"><span class="method-chip">${esc(comp.method || '-')}</span></td>
+            <td class="th-value">
+                <div style="font-weight:600; color:var(--text-main); font-family:'JetBrains Mono', monospace; font-size:0.80rem;">${esc(comp.value || '-')}</div>
+                ${comp.evidence && comp.evidence !== '-' ? `<div style="font-size:0.74rem; color:var(--text-muted); margin-top:2px;">Bukti: "${esc(comp.evidence)}"</div>` : ''}
+            </td>
+            <td class="th-action" style="text-align:center;">
+                <button type="button" class="btn btn-sm btn-outline" style="padding:2px 8px;" onclick="toggleDetail(${idx})" title="Buka Detail">
+                    <i class="fa-solid fa-angle-down"></i>
                 </button>
             </td>
         `;
@@ -336,43 +427,16 @@ function renderAuditTable(components) {
         detailTr.dataset.status   = comp.status;
         detailTr.dataset.optional = comp.is_optional ? '1' : '0';
         detailTr.innerHTML = `
-            <td colspan="9" style="padding:4px 14px 12px;">
-                <div class="detail-panel">
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <label>Komponen</label>
-                            <span>${esc(comp.name)}</span>
-                        </div>
-                        <div class="detail-item">
-                            <label>Status</label>
-                            <span>${esc(comp.status_label)}</span>
-                        </div>
-                        <div class="detail-item">
-                            <label>Confidence</label>
-                            <span>${((comp.confidence || 0) * 100).toFixed(0)}%</span>
-                        </div>
-                        <div class="detail-item">
-                            <label>Metode</label>
-                            <span>${esc(comp.method || '-')}</span>
-                        </div>
-                        <div class="detail-item">
-                            <label>Nilai Diekstrak</label>
-                            <span>${esc(comp.value || '-')}</span>
-                        </div>
-                        <div class="detail-item">
-                            <label>Bounding Box</label>
-                            <span>${comp.bbox ? JSON.stringify(comp.bbox) : '-'}</span>
-                        </div>
+            <td colspan="7" style="padding:0 14px;">
+                <div class="detail-box">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:6px;">
+                        <div><strong>Komponen:</strong> ${esc(comp.name)}</div>
+                        <div><strong>Confidence:</strong> ${Math.round((comp.confidence || 0) * 100)}%</div>
+                        <div><strong>Metode Deteksi:</strong> ${esc(comp.method || '-')}</div>
+                        <div><strong>Bounding Box:</strong> ${comp.bbox ? JSON.stringify(comp.bbox) : '-'}</div>
                     </div>
-                    ${comp.evidence && comp.evidence !== '-' ? `
-                    <div class="detail-evidence">
-                        <strong style="color:var(--primary-hover);">Evidence:</strong> ${esc(comp.evidence)}
-                    </div>` : ''}
-                    ${comp.notes ? `
-                    <div class="detail-notes">
-                        <i class="fa-solid fa-circle-exclamation"></i>
-                        <strong>Catatan:</strong> ${esc(comp.notes)}
-                    </div>` : ''}
+                    ${comp.evidence && comp.evidence !== '-' ? `<div style="margin-top:6px; color:var(--primary);"><strong>Evidence OCR / CV:</strong> ${esc(comp.evidence)}</div>` : ''}
+                    ${comp.notes ? `<div style="margin-top:6px; color:var(--amber-text); font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Catatan: ${esc(comp.notes)}</div>` : ''}
                 </div>
             </td>
         `;
@@ -380,70 +444,34 @@ function renderAuditTable(components) {
     });
 }
 
-// ── Expand/Collapse Detail ──
 function toggleDetail(idx) {
     const detailRow = document.getElementById(`detail-row-${idx}`);
-    const btn       = document.getElementById(`expand-btn-${idx}`);
-    if (!detailRow) return;
-
-    const isVisible = detailRow.classList.contains('visible');
-    detailRow.classList.toggle('visible', !isVisible);
-    btn.classList.toggle('expanded', !isVisible);
-    btn.innerHTML = isVisible
-        ? '<i class="fa-solid fa-chevron-down"></i> Detail'
-        : '<i class="fa-solid fa-chevron-up"></i> Tutup';
+    if (detailRow) detailRow.classList.toggle('visible');
 }
 
 // ── Filter ──
 function applyFilter(filter) {
     const rows = document.querySelectorAll('#audit-tbody tr');
     rows.forEach(tr => {
-        if (tr.classList.contains('detail-row')) {
-            // Detail rows follow their parent
-            return;
-        }
-        const status   = tr.dataset.status;
-        const optional = tr.dataset.optional === '1';
-
+        if (tr.classList.contains('detail-row')) return;
+        const status = tr.dataset.status;
         let visible = false;
-        if (filter === 'all') {
-            visible = true;
-        } else if (filter === 'found') {
-            visible = status === 'found';
-        } else if (filter === 'uncertain') {
-            visible = status === 'uncertain';
-        } else if (filter === 'not_found') {
-            visible = status === 'not_found';
-        }
-
+        if (filter === 'all') visible = true;
+        else if (filter === 'found') visible = status === 'found';
+        else if (filter === 'uncertain') visible = status === 'uncertain';
+        else if (filter === 'not_found') visible = status === 'not_found';
         tr.classList.toggle('hidden-row', !visible);
-    });
-
-    // Also hide detail rows of hidden parents
-    const allRows = document.querySelectorAll('#audit-tbody tr');
-    allRows.forEach((tr, i) => {
-        if (tr.classList.contains('detail-row')) {
-            // Check previous sibling
-            const prev = allRows[i - 1];
-            if (prev && prev.classList.contains('hidden-row')) {
-                tr.classList.add('hidden-row');
-                tr.classList.remove('visible');
-            } else if (prev) {
-                tr.classList.remove('hidden-row');
-            }
-        }
     });
 }
 
-// ── Titik Kartometrik ──
+// ── Kartometrik Table ──
 function renderTitikKartometrik(kartData) {
-    const tbody  = document.getElementById('kartometrik-tbody');
-    const method = document.getElementById('kartometrik-method');
-    const total  = document.getElementById('kartometrik-total');
+    const tbody    = document.getElementById('kartometrik-tbody');
+    const method   = document.getElementById('kartometrik-method');
+    const total    = document.getElementById('kartometrik-total');
     const emptyMsg = document.getElementById('kartometrik-empty');
 
     if (!tbody) return;
-
     const rows = kartData.rows || [];
     tbody.innerHTML = '';
 
@@ -451,52 +479,43 @@ function renderTitikKartometrik(kartData) {
     if (total)  total.textContent  = rows.length + ' Titik';
 
     if (rows.length === 0) {
-        tbody.parentElement.style.display = 'none';
         if (emptyMsg) emptyMsg.classList.remove('hidden');
+        tbody.parentElement.style.display = 'none';
         return;
     }
 
-    tbody.parentElement.style.display = '';
     if (emptyMsg) emptyMsg.classList.add('hidden');
+    tbody.parentElement.style.display = 'table';
 
     rows.forEach((row, i) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td style="text-align:center; font-weight:600; color:var(--text-muted);">${esc(row.no || (i+1).toString())}</td>
-            <td style="font-weight:600; color:var(--text-bright);">${esc(row.kode || '-')}</td>
-            <td>${esc(row.lintang || '-')}</td>
-            <td>${esc(row.bujur || '-')}</td>
-            <td>${esc(row.x || '-')}</td>
-            <td>${esc(row.y || '-')}</td>
+            <td style="text-align:center; font-weight:600;">${esc(row.no || (i+1).toString())}</td>
+            <td style="font-weight:700; font-family:'JetBrains Mono', monospace;">${esc(row.kode || '-')}</td>
+            <td style="font-family:'JetBrains Mono', monospace;">${esc(row.lintang || '-')}</td>
+            <td style="font-family:'JetBrains Mono', monospace;">${esc(row.bujur || '-')}</td>
+            <td style="font-family:'JetBrains Mono', monospace;">${esc(row.x || '-')}</td>
+            <td style="font-family:'JetBrains Mono', monospace;">${esc(row.y || '-')}</td>
         `;
         tbody.appendChild(tr);
     });
 }
 
 // ================================================================
-// RENDER HELPERS
+// HELPERS
 // ================================================================
 function renderBadge(status) {
-    if (status === 'found')
-        return '<span class="badge badge-found"><i class="fa-solid fa-check"></i> Ditemukan</span>';
-    if (status === 'uncertain')
-        return '<span class="badge badge-uncertain"><i class="fa-solid fa-triangle-exclamation"></i> Tidak Dapat Dipastikan</span>';
-    return '<span class="badge badge-notfound"><i class="fa-solid fa-xmark"></i> Tidak Ditemukan</span>';
+    if (status === 'found') return '<span class="badge-status badge-found"><i class="fa-solid fa-check"></i> Ditemukan</span>';
+    if (status === 'uncertain') return '<span class="badge-status badge-uncertain"><i class="fa-solid fa-triangle-exclamation"></i> Perlu Dipastikan</span>';
+    return '<span class="badge-status badge-notfound"><i class="fa-solid fa-xmark"></i> Tidak Ditemukan</span>';
 }
 
-function renderConfBar(conf) {
-    const pct   = Math.round((conf || 0) * 100);
-    let color   = '#EF4444';
-    if (pct >= 70) color = '#10B981';
-    else if (pct >= 40) color = '#F59E0B';
-
-    return `
-        <div class="conf-bar-wrap">
-            <div class="conf-bar">
-                <div class="conf-bar-fill" style="width:${pct}%; background:${color};"></div>
-            </div>
-            <span class="conf-val">${pct}%</span>
-        </div>`;
+function renderConfBadge(conf) {
+    const pct = Math.round((conf || 0) * 100);
+    let color = 'var(--red-text)';
+    if (pct >= 70) color = 'var(--green-text)';
+    else if (pct >= 40) color = 'var(--amber-text)';
+    return `<span class="conf-badge" style="color:${color};">${pct}%</span>`;
 }
 
 function formatTimestamp(ts) {
