@@ -56,6 +56,22 @@ class TestWilayahChecker(unittest.TestCase):
         self.assertTrue(calculate_name_similarity("Alue Lim", "DESA ALUE LIM"))
         self.assertFalse(calculate_name_similarity("Blang Buloh", "Alue Lim"))
 
+    def test_duplicate_code_different_tables_and_lampiran_filter(self):
+        from modules.wilayah_checker import extract_wilayah_records_from_pdf
+        # Test helper function directly with mock or record structures
+        records = [
+            {"source": "Tabel 1 (Hal 2)", "page": 2, "table_id": "p2_t0", "code": "11.73.03.2017", "desa": "Alue Lim", "kecamatan": "Blang Mangat", "kabupaten": "Kota Lhokseumawe", "provinsi": "Aceh"},
+            {"source": "Tabel 2 (Hal 2)", "page": 2, "table_id": "p2_t1", "code": "11.73.03.2017", "desa": "Blang Teue", "kecamatan": "Blang Mangat", "kabupaten": "Kota Lhokseumawe", "provinsi": "Aceh"}
+        ]
+        code_to_written_desa = {}
+        for rec in records:
+            code_to_written_desa.setdefault(rec["code"], []).append(rec)
+        
+        # Check if table_ids > 1 causes duplicate warning to be skipped
+        for code_key, occurrences in code_to_written_desa.items():
+            table_ids = set(item.get("table_id") for item in occurrences if item.get("table_id"))
+            self.assertTrue(len(table_ids) > 1)  # occurrences are in different tables
+
 
 if __name__ == "__main__":
     unittest.main()

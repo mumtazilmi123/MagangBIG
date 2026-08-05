@@ -63,8 +63,8 @@ def identify_table_columns(header_row: List[Any]) -> Dict[str, int]:
 
 def extract_wilayah_records_from_pdf(pdf_bytes: bytes) -> List[Dict[str, Any]]:
     """
-    Mendeteksi seluruh tabel pada dokumen dan mengestrak baris data wilayah,
-    serta mendeteksi teks di luar tabel.
+    Mendeteksi seluruh tabel pada dokumen (khusus halaman bertuliskan 'Lampiran 2')
+    dan mengestrak baris data wilayah, serta mendeteksi teks di luar tabel.
     """
     extracted_records: List[Dict[str, Any]] = []
     seen_combinations = set()
@@ -73,6 +73,11 @@ def extract_wilayah_records_from_pdf(pdf_bytes: bytes) -> List[Dict[str, Any]]:
         with pdfplumber.open(BytesIO(pdf_bytes)) as plumber_pdf:
             for page_idx, page in enumerate(plumber_pdf.pages):
                 page_num = page_idx + 1
+                text = page.extract_text() or ""
+
+                # Pengecekan Halaman: Hanya periksa kode wilayah jika halaman bertuliskan "Lampiran 2" (atau Lampiran II)
+                if not re.search(r'lampiran\s*(?:2|ii)\b', text, re.IGNORECASE):
+                    continue
 
                 # 1. Ekstraksi via Tabel
                 tables = page.extract_tables()
@@ -114,12 +119,14 @@ def extract_wilayah_records_from_pdf(pdf_bytes: bytes) -> List[Dict[str, Any]]:
                                 code_match = re.search(r'\b(\d{2}\.\d{2}\.\d{2}\.\d{4})\b', raw_code) or re.search(r'\b(\d{10})\b', raw_code)
                                 if code_match:
                                     code_str = code_match.group(1)
-                                    comb_key = f"{page_num}_{code_str}_{desa}_{kec}_{kab}"
+                                    tbl_id = f"p{page_num}_t{tbl_idx}"
+                                    comb_key = f"{page_num}_{tbl_id}_{code_str}_{desa}_{kec}_{kab}"
                                     if comb_key not in seen_combinations:
                                         seen_combinations.add(comb_key)
                                         extracted_records.append({
-                                            "source": f"Tabel (Hal {page_num})",
+                                            "source": f"Tabel {tbl_idx + 1} (Hal {page_num})",
                                             "page": page_num,
+                                            "table_id": tbl_id,
                                             "code": code_str,
                                             "desa": desa,
                                             "kecamatan": kec,
@@ -128,7 +135,6 @@ def extract_wilayah_records_from_pdf(pdf_bytes: bytes) -> List[Dict[str, Any]]:
                                         })
 
                 # 2. Ekstraksi Teks Bebas (Key-Value atau Pasangan Kode)
-                text = page.extract_text() or ""
                 if text:
                     # Pola Key-Value: Kode Wilayah : 11.73.03.2017 ...
                     kv_code = re.search(r'Kode\s*Wilayah\s*[:=]\s*(\d{2}\.\d{2}\.\d{2}\.\d{4}|\d{10})', text, re.IGNORECASE)
@@ -143,13 +149,15 @@ def extract_wilayah_records_from_pdf(pdf_bytes: bytes) -> List[Dict[str, Any]]:
                         kec_str = kv_kec.group(1).strip() if kv_kec else ""
                         kab_str = kv_kab.group(1).strip() if kv_kab else ""
                         prov_str = kv_prov.group(1).strip() if kv_prov else ""
+                        tbl_id = f"p{page_num}_text"
 
-                        comb_key = f"{page_num}_{code_str}_{desa_str}_{kec_str}_{kab_str}"
+                        comb_key = f"{page_num}_{tbl_id}_{code_str}_{desa_str}_{kec_str}_{kab_str}"
                         if comb_key not in seen_combinations:
                             seen_combinations.add(comb_key)
                             extracted_records.append({
                                 "source": f"Teks Dokumen (Hal {page_num})",
                                 "page": page_num,
+                                "table_id": tbl_id,
                                 "code": code_str,
                                 "desa": desa_str,
                                 "kecamatan": kec_str,
@@ -170,13 +178,15 @@ def extract_wilayah_records_from_pdf(pdf_bytes: bytes) -> List[Dict[str, Any]]:
                             d_val = parts[0] if len(parts) > 0 else ""
                             k_val = parts[1] if len(parts) > 1 else ""
                             b_val = parts[2] if len(parts) > 2 else ""
+                            tbl_id = f"p{page_num}_line"
 
-                            comb_key = f"{page_num}_{code_str}_{d_val}_{k_val}_{b_val}"
+                            comb_key = f"{page_num}_{tbl_id}_{code_str}_{d_val}_{k_val}_{b_val}"
                             if comb_key not in seen_combinations:
                                 seen_combinations.add(comb_key)
                                 extracted_records.append({
                                     "source": f"Baris Teks (Hal {page_num})",
                                     "page": page_num,
+                                    "table_id": tbl_id,
                                     "code": code_str,
                                     "desa": d_val,
                                     "kecamatan": k_val,
@@ -375,21 +385,8 @@ def audit_wilayah_consistency(pdf_bytes: bytes, db_instance: Optional[WilayahDat
             "context_warning": None
         })
 
-    # Pengecekan Pertukaran Kode Wilayah & Kode Wilayah Ganda
-    for code_key, occurrences in code_to_written_desa.items():
-        distinct_desas = set(normalize_name(item["desa"]) for item in occurrences if item["desa"])
-        if len(distinct_desas) > 1:
-            overall_pass = False
-            for r_item in results:
-                if r_item["code_in_doc"] == code_key:
-                    r_item["is_valid"] = False
-                    desas_list_str = " dan ".join(list(set(item['desa'] for item in occurrences if item['desa'])))
-                    dup_msg = f"Perhatian: Kode Wilayah '{code_key}' digunakan untuk lebih dari 1 desa berbeda ({desas_list_str}). Pastikan tidak ada kode yang tertukar."
-                    if r_item["mismatch_type"]:
-                        r_item["mismatch_type"] += ", Penggunaan Kode Wilayah Ganda"
-                    else:
-                        r_item["mismatch_type"] = "Penggunaan Kode Wilayah Ganda"
-                    r_item["recommendation"] += f" {dup_msg}"
+    # Pengecekan Pertukaran Kode Wilayah & Kode Wilayah Ganda: Abaikan jika terdapat kode ganda (tidak diberi peringatan)
+    pass
 
     # Tahap 3: Validasi Konteks Dokumen (Document-wide Majority Consistency)
     if records:

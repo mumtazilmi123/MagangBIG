@@ -1,5 +1,5 @@
 // ================================================================
-// VERIDOC v5.0 — PREMIUM SPA ENGINE (Multi-Upload + Card Anomalies)
+// VERIDOC v5.5 — PREMIUM SPA ENGINE (Multi-Upload + Card Anomalies)
 // ================================================================
 
 let leafletMap = null;
@@ -8,12 +8,11 @@ let currentAuditData = null;
 let currentMapBounds = null;
 let selectedMode = 'pdf';
 let selectedFiles = [];
-let mapAuditFile = null;
 let vectorPredictFile = null;
 let multiResults = [];
 
 // ================================================================
-// TAB SYSTEM
+// TAB SYSTEM (TOMBOL PINDAH HALAMAN)
 // ================================================================
 function switchTab(tabId) {
     document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
@@ -79,10 +78,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Elements
-    // Elements
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
-    const mapAuditInput = document.getElementById('map-audit-input');
     const browseBtn = document.getElementById('btn-browse-action');
     const processBtn = document.getElementById('process-btn');
     const processBtnText = document.getElementById('process-btn-text');
@@ -95,42 +92,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const progressFill = document.getElementById('progress-fill');
     const progressText = document.getElementById('progress-text');
 
-    // Mode Switcher
-    const btnPdf = document.getElementById('btn-mode-pdf');
-    const btnMap = document.getElementById('btn-mode-map');
-
-    function setMode(mode) {
-        selectedMode = mode;
-        [btnPdf, btnMap].forEach(btn => btn && btn.classList.remove('active'));
-
-        const titleEl = document.getElementById('upload-title-element');
-        const descEl = document.getElementById('upload-desc-element');
-        const iconEl = document.getElementById('upload-icon-element');
-
-        if (mode === 'pdf' && btnPdf) {
-            btnPdf.classList.add('active');
-            if(titleEl) titleEl.textContent = 'Unggah Dokumen PDF SKVT';
-            if(descEl) descEl.textContent = 'Pilih atau seret satu atau beberapa file PDF sekaligus';
-            if(iconEl) iconEl.className = 'fa-solid fa-cloud-arrow-up drop-icon-main';
-            if(fileInput) fileInput.setAttribute('multiple', '');
-        } else if (mode === 'map' && btnMap) {
-            btnMap.classList.add('active');
-            if(titleEl) titleEl.textContent = 'Unggah Berkas Peta (.pdf, .png, .jpg)';
-            if(descEl) descEl.textContent = 'Pilih peta untuk pemeriksaan keterbacaan, typo, koordinat legenda, & teks bertumpuk';
-            if(iconEl) iconEl.className = 'fa-solid fa-map-location-dot drop-icon-main';
-        }
-        resetSelection();
-    }
-
-    if (btnPdf) btnPdf.addEventListener('click', () => setMode('pdf'));
-    if (btnMap) btnMap.addEventListener('click', () => setMode('map'));
-
     // File Selection
     if (browseBtn) {
         browseBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (selectedMode === 'map' && mapAuditInput) mapAuditInput.click();
-            else if (fileInput) fileInput.click();
+            if (fileInput) fileInput.click();
         });
     }
 
@@ -146,38 +112,28 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         dropZone.addEventListener('click', (e) => {
             if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
-            if (selectedMode === 'map' && mapAuditInput) mapAuditInput.click();
-            else if (fileInput) fileInput.click();
+            if (fileInput) fileInput.click();
         });
     }
 
     if (fileInput) fileInput.addEventListener('change', function() { handleFiles(this.files); });
-    if (mapAuditInput) mapAuditInput.addEventListener('change', function() { handleFiles(this.files); });
 
     function handleFiles(files) {
         if (!files || files.length === 0) return;
 
-        if (selectedMode === 'map') {
-            mapAuditFile = files[0];
-            selectedFiles = [files[0]];
-            renderFileChips();
-            if (processBtn) processBtn.disabled = false;
-            if (processBtnText) processBtnText.textContent = 'Audit Pembacaan Peta';
-        } else {
-            const pdfFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf');
-            if (pdfFiles.length === 0) {
-                showError("Tidak ditemukan berkas PDF yang valid.");
-                return;
-            }
-            // Ganti daftar berkas dengan pilihan berkas baru (tidak menumpuk berkas lama)
-            selectedFiles = pdfFiles;
-            renderFileChips();
-            if (processBtn) processBtn.disabled = false;
-            if (processBtnText) {
-                processBtnText.textContent = selectedFiles.length === 1 
-                    ? 'Jalankan Pengecekan Dokumen' 
-                    : `Jalankan Pengecekan ${selectedFiles.length} Dokumen`;
-            }
+        const pdfFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf');
+        if (pdfFiles.length === 0) {
+            showError("Tidak ditemukan berkas PDF yang valid.");
+            return;
+        }
+        // Ganti daftar berkas dengan pilihan berkas baru (tidak menumpuk berkas lama)
+        selectedFiles = pdfFiles;
+        renderFileChips();
+        if (processBtn) processBtn.disabled = false;
+        if (processBtnText) {
+            processBtnText.textContent = selectedFiles.length === 1 
+                ? 'Jalankan Pengecekan Dokumen' 
+                : `Jalankan Pengecekan ${selectedFiles.length} Dokumen`;
         }
         if (errorMsg) errorMsg.classList.add('hidden');
     }
@@ -198,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedFiles.forEach((file, idx) => {
             const chip = document.createElement('div');
             chip.className = 'file-chip';
-            const icon = selectedMode === 'map' ? 'fa-map-location-dot' : 'fa-file-pdf';
+            const icon = 'fa-file-pdf';
             const sizeKB = (file.size / 1024).toFixed(0);
             chip.innerHTML = `
                 <i class="fa-solid ${icon}"></i>
@@ -215,13 +171,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 e.stopPropagation();
                 const idx = parseInt(btn.getAttribute('data-idx'));
                 selectedFiles.splice(idx, 1);
-                if (selectedMode === 'map') mapAuditFile = null;
                 renderFileChips();
                 if (selectedFiles.length === 0) {
                     resetSelection();
                 } else if (processBtnText) {
                     processBtnText.textContent = selectedFiles.length === 1 
-                        ? (selectedMode === 'map' ? 'Audit Pembacaan Peta' : 'Jalankan Pengecekan Dokumen') 
+                        ? 'Jalankan Pengecekan Dokumen' 
                         : `Jalankan Pengecekan ${selectedFiles.length} Dokumen`;
                 }
             });
@@ -238,14 +193,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function resetSelection() {
         selectedFiles = [];
-        mapAuditFile = null;
         if (fileInput) fileInput.value = '';
-        if (mapAuditInput) mapAuditInput.value = '';
         if (filesChips) filesChips.innerHTML = '';
         if (filesList) filesList.classList.add('hidden');
         if (processBtn) processBtn.disabled = true;
         if (processBtnText) {
-            processBtnText.textContent = selectedMode === 'map' ? 'Audit Pembacaan Peta' : 'Jalankan Pengecekan Dokumen';
+            processBtnText.textContent = 'Jalankan Pengecekan Dokumen';
         }
     }
 
@@ -307,17 +260,8 @@ document.addEventListener('DOMContentLoaded', function() {
         { id: 6, title: "6. Generasi Laporan & Database Spasial", desc: "Menyusun laporan akhir PDF & menyimpan data spasial ke DuckDB...", icon: "fa-database", percent: 98, status: "Menyusun laporan PDF & DuckDB..." }
     ];
 
-    const STEPS_DATA_MAP = [
-        { id: 1, title: "1. Memuat & Render Citra Peta", desc: "Mengonversi lembar peta ke citra high-DPI untuk analisis Vision AI...", icon: "fa-image", percent: 15, status: "Mengonversi lembar peta ke citra high-DPI..." },
-        { id: 2, title: "2. Inspeksi Keterbacaan & Layout Peta", desc: "Memeriksa kejelasan peta, kelengkapan legenda, skala bar & orientasi utara...", icon: "fa-map-location-dot", percent: 35, status: "Memeriksa kelengkapan layout & legenda..." },
-        { id: 3, title: "3. Pemindaian Typo di Peta & Legenda", desc: "Pemeriksaan ejaan judul peta, tabel legenda, dan nama wilayah (KBBI)...", icon: "fa-spell-check", percent: 55, status: "Scanning typo judul & tabel legenda..." },
-        { id: 4, title: "4. Verifikasi Koordinat Legenda vs Peta", desc: "Mencocokkan nilai koordinat Titik Kartometrik (TK) legenda dengan titik peta...", icon: "fa-location-crosshairs", percent: 75, status: "Membandingkan koordinat legenda vs peta..." },
-        { id: 5, title: "5. Deteksi Teks Titik TK Bertumpuk", desc: "Memeriksa kejelasan penomoran titik TK & angka koordinat agar tidak terpotong...", icon: "fa-layer-group", percent: 90, status: "Memeriksa teks bertumpuk / terpotong..." },
-        { id: 6, title: "6. Generasi Hasil Pembacaan Peta Vision AI", desc: "Menyusun laporan analisis keterbacaan & 4 aspek pengecekan peta...", icon: "fa-chart-pie", percent: 98, status: "Menyusun laporan hasil pembacaan peta..." }
-    ];
-
     function getActiveStepsData() {
-        return selectedMode === 'map' ? STEPS_DATA_MAP : STEPS_DATA_PDF;
+        return STEPS_DATA_PDF;
     }
 
     function requestNotificationPermission() {
@@ -519,44 +463,29 @@ document.addEventListener('DOMContentLoaded', function() {
             const outputDirEl = document.getElementById('output-dir-input');
             const outputDirVal = outputDirEl ? (outputDirEl.value || '').trim() : '';
 
-            const docLabel = selectedMode === 'map' 
-                ? (typeof mapAuditFile !== 'undefined' && mapAuditFile ? mapAuditFile.name : "Berkas Peta")
-                : (selectedFiles.length > 0 ? selectedFiles[0].name : "Dokumen PDF");
+            const docLabel = selectedFiles.length > 0 ? selectedFiles[0].name : "Dokumen PDF";
 
             try {
                 startAnimatedProgress(docLabel);
 
-                if (selectedMode === 'map') {
-                    const formData = new FormData();
-                    formData.append('file', mapAuditFile);
-                    const response = await fetch('/api/audit-map', { method: 'POST', body: formData });
-                    if (!response.ok) {
-                        const errRes = await response.json();
-                        throw new Error(errRes.detail || "Gagal menganalisis pembacaan peta.");
-                    }
-                    const data = await response.json();
-                    finishAnimatedProgress(docLabel);
-                    renderMapResults(data);
+                const formData = new FormData();
+                selectedFiles.forEach(f => formData.append('files', f));
+                formData.append('utm_zone', utmVal);
+                formData.append('datum', datumVal);
+                if (outputDirVal) formData.append('output_dir', outputDirVal);
+
+                const response = await fetch('/api/audit', { method: 'POST', body: formData });
+                if (!response.ok) {
+                    const errRes = await response.json();
+                    throw new Error(errRes.detail || "Gagal memproses dokumen PDF.");
+                }
+                const data = await response.json();
+                finishAnimatedProgress(docLabel);
+
+                if (data.mode === 'multi') {
+                    renderMultiResults(data);
                 } else {
-                    const formData = new FormData();
-                    selectedFiles.forEach(f => formData.append('files', f));
-                    formData.append('utm_zone', utmVal);
-                    formData.append('datum', datumVal);
-                    if (outputDirVal) formData.append('output_dir', outputDirVal);
-
-                    const response = await fetch('/api/audit', { method: 'POST', body: formData });
-                    if (!response.ok) {
-                        const errRes = await response.json();
-                        throw new Error(errRes.detail || "Gagal memproses dokumen PDF.");
-                    }
-                    const data = await response.json();
-                    finishAnimatedProgress(docLabel);
-
-                    if (data.mode === 'multi') {
-                        renderMultiResults(data);
-                    } else {
-                        renderSingleResults(data);
-                    }
+                    renderSingleResults(data);
                 }
 
                 // Reset daftar file upload agar tidak menumpuk untuk proses selanjutnya
@@ -695,9 +624,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Tab: Kesesuaian Kode Wilayah
         renderWilayahConsistencyAudit(data.wilayah_consistency_audit);
-
-        // Tab: Pemeriksaan Unsur Peta
-        renderMapElementsAudit(data.map_elements_audit);
 
 
         // Tab 6: Coordinates
@@ -1125,157 +1051,9 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsSec.scrollIntoView({ behavior: 'smooth' });
     }
 
-    // ================================================================
-    // RENDER: Map Vision Audit Results (4 Pengecekan Peta)
-    // ================================================================
-    // RENDER: Map Vision Audit Results (Gemini Vision AI)
-    // ================================================================
-    function renderMapResults(data) {
-        const getBadgeHtml = (status) => {
-            if (status === 'PASS' || status === 'PASS_COMPLETELY') {
-                return `<span class="badge badge-success" style="font-weight:700; padding:6px 14px; border-radius:20px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;"><i class="fa-solid fa-circle-check"></i> Sesuai / PASS</span>`;
-            }
-            if (status === 'WARNING') {
-                return `<span class="badge badge-warning" style="font-weight:700; padding:6px 14px; border-radius:20px; background:#fffbeb; color:#d97706; border:1px solid #fde68a;"><i class="fa-solid fa-triangle-exclamation"></i> Warning</span>`;
-            }
-            return `<span class="badge badge-danger" style="font-weight:700; padding:6px 14px; border-radius:20px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca;"><i class="fa-solid fa-circle-xmark"></i> FAIL / Tidak Sesuai</span>`;
-        };
 
-        const baca = data.bisa_baca_peta || {};
-        const typo = data.periksa_typo_peta || {};
-        const coord = data.kesesuaian_koordinat_legenda_vs_peta || {};
-        const overlap = data.keterangan_tk_bertumpuk || {};
-        const grid = data.pemeriksaan_grid_koordinat || {};
 
-        const bBaca = document.getElementById('map-stat-baca');
-        if (bBaca) bBaca.innerHTML = getBadgeHtml(baca.status || 'PASS');
-        const bTypo = document.getElementById('map-stat-typo');
-        if (bTypo) bTypo.innerHTML = getBadgeHtml(typo.status || 'PASS');
-        const bCoord = document.getElementById('map-stat-coord');
-        if (bCoord) bCoord.innerHTML = getBadgeHtml(coord.status || 'PASS');
-        const bOverlap = document.getElementById('map-stat-overlap');
-        if (bOverlap) bOverlap.innerHTML = getBadgeHtml(overlap.status || 'PASS');
 
-        const regEl = document.getElementById('res-region');
-        if (regEl) {
-            let regionName = data.region;
-            if (!regionName || regionName === 'Peta Lampiran SKVT BIG') {
-                if (typeof mapAuditFile !== 'undefined' && mapAuditFile && mapAuditFile.name) {
-                    regionName = mapAuditFile.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ").replace(/-/g, " ");
-                    regionName = regionName.replace(/^(peta|skvt|laporan|audit)\s+/i, "").trim();
-                }
-            }
-            regEl.textContent = regionName || 'Peta Lampiran SKVT BIG';
-        }
-
-        const modelUsed = data.ai_model_used || "gemini-2.0-flash";
-        const anomEl = document.getElementById('res-anomalies');
-        if (anomEl) anomEl.textContent = `5 Parameter (${modelUsed})`;
-
-        const cardGreen = document.querySelector('.stat-card-green');
-        if (cardGreen) cardGreen.classList.add('hidden');
-        const cardPurple = document.querySelector('.stat-card-purple');
-        if (cardPurple) cardPurple.classList.add('hidden');
-
-        const multiNav = document.getElementById('multi-file-nav');
-        if (multiNav) multiNav.classList.add('hidden');
-        
-        const mapContainer = document.getElementById('map-result-container');
-        if (mapContainer) mapContainer.classList.remove('hidden');
-        
-        const pdfWrapper = document.getElementById('pdf-tabs-wrapper');
-        if (pdfWrapper) pdfWrapper.classList.add('hidden');
-        
-        const exporterSec = document.getElementById('exporter-section');
-        if (exporterSec) exporterSec.classList.add('hidden');
-
-        let detailsHtml = `
-            <div style="display:flex; flex-direction:column; gap:16px; margin-top:16px;">
-                <div style="font-size:0.85rem; background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:8px 14px; border-radius:8px; font-weight:600; display:flex; align-items:center; gap:8px;">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i> Model Gemini AI Aktif: <strong>${modelUsed}</strong> (Multimodal Visual Inspector)
-                </div>
-
-                <!-- 1. Keterbacaan Peta -->
-                <div class="card" style="padding:20px; border-radius:12px; background:#ffffff; border:1px solid var(--border-color); border-left:5px solid ${baca.status === 'PASS' ? '#059669' : '#dc2626'}; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-                    <h4 style="margin:0 0 8px 0; color:var(--text-bright); font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:8px;">
-                        <i class="fa-solid fa-map" style="color:var(--accent-blue);"></i> 1. Keterbacaan & Kualitas Peta (Bisa Baca Peta)
-                    </h4>
-                    <p style="margin:0; color:var(--text-secondary); font-size:0.92rem; line-height:1.6;">
-                        ${baca.catatan || 'Peta berhasil diekstrak dan dibaca utuh. Layout legenda, skala, orientasi utara, dan area peta terverifikasi jelas.'}
-                    </p>
-                    ${baca.kualitas_peta ? `<div style="margin-top:8px; font-size:0.82rem; color:var(--text-muted); font-weight:600;"><i class="fa-solid fa-circle-info"></i> Kualitas Peta: ${baca.kualitas_peta}</div>` : ''}
-                </div>
-
-                <!-- 2. Periksa Typo -->
-                <div class="card" style="padding:20px; border-radius:12px; background:#ffffff; border:1px solid var(--border-color); border-left:5px solid ${typo.status === 'PASS' ? '#059669' : '#d97706'}; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-                    <h4 style="margin:0 0 8px 0; color:var(--text-bright); font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:8px;">
-                        <i class="fa-solid fa-spell-check" style="color:var(--accent-purple);"></i> 2. Hasil Pemeriksaan Typo di Peta & Legenda
-                    </h4>
-                    <p style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.92rem; line-height:1.6;">
-                        ${typo.catatan || 'Pemeriksaan ejaan pada judul peta, tabel legenda, dan nama wilayah terverifikasi sesuai KBBI/Pedoman Geodesi.'}
-                    </p>
-                    ${(typo.typo_ditemukan && typo.typo_ditemukan.length > 0) ? `
-                        <ul style="margin:8px 0 0 20px; padding:0; color:#dc2626; font-size:0.9rem; line-height:1.5;">
-                            ${typo.typo_ditemukan.map(t => `<li>Typo <strong>"${t.kata_salah}"</strong> pada ${t.lokasi || 'Peta'} &rarr; Saran perbaikan: <strong style="color:#059669;">"${t.saran_perbaikan}"</strong></li>`).join('')}
-                        </ul>
-                    ` : ''}
-                </div>
-
-                <!-- 3. Kesesuaian Koordinat Legenda vs Peta -->
-                <div class="card" style="padding:20px; border-radius:12px; background:#ffffff; border:1px solid var(--border-color); border-left:5px solid ${coord.status === 'PASS' ? '#059669' : '#dc2626'}; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-                    <h4 style="margin:0 0 8px 0; color:var(--text-bright); font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:8px;">
-                        <i class="fa-solid fa-location-crosshairs" style="color:var(--accent-amber);"></i> 3. Kesesuaian Koordinat TK Legenda vs Peta Utama
-                    </h4>
-                    <p style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.92rem; line-height:1.6;">
-                        ${coord.catatan || 'Koordinat Titik Kartometrik (TK) pada tabel legenda terverifikasi presisi dan sesuai dengan angka pada titik lokasi peta.'}
-                    </p>
-                    ${(coord.ketidaksesuaian && coord.ketidaksesuaian.length > 0) ? `
-                        <ul style="margin:8px 0 0 20px; padding:0; color:#dc2626; font-size:0.9rem; line-height:1.5;">
-                            ${coord.ketidaksesuaian.map(c => `<li>Titik <strong>${c.titik_tk}</strong>: Legenda (${c.koordinat_legenda}) vs Peta (${c.koordinat_peta}) &rarr; ${c.catatan}</li>`).join('')}
-                        </ul>
-                    ` : ''}
-                </div>
-
-                <!-- 4. Keterangan Titik TK Bertumpuk -->
-                <div class="card" style="padding:20px; border-radius:12px; background:#ffffff; border:1px solid var(--border-color); border-left:5px solid ${overlap.status === 'PASS' ? '#059669' : '#d97706'}; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-                    <h4 style="margin:0 0 8px 0; color:var(--text-bright); font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:8px;">
-                        <i class="fa-solid fa-layer-group" style="color:var(--accent-emerald);"></i> 4. Keterangan Titik TK Bertumpuk / Tidak Terbaca
-                    </h4>
-                    <p style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.92rem; line-height:1.6;">
-                        ${overlap.catatan || 'Teks penomoran titik TK dan angka koordinat teratur rapi tanpa ada indikasi bertumpuk atau terpotong.'}
-                    </p>
-                    ${(overlap.teks_bertumpuk_ditemukan && overlap.teks_bertumpuk_ditemukan.length > 0) ? `
-                        <ul style="margin:8px 0 0 20px; padding:0; color:#d97706; font-size:0.9rem; line-height:1.5;">
-                            ${overlap.teks_bertumpuk_ditemukan.map(o => `<li>Titik <strong>${o.titik_tk}</strong> di ${o.lokasi}: ${o.catatan}</li>`).join('')}
-                        </ul>
-                    ` : ''}
-                </div>
-
-                <!-- 5. Pemeriksaan Grid Koordinat & Gratikul Peta -->
-                <div class="card" style="padding:20px; border-radius:12px; background:#ffffff; border:1px solid var(--border-color); border-left:5px solid ${grid.status === 'PASS' ? '#059669' : '#dc2626'}; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-                    <h4 style="margin:0 0 8px 0; color:var(--text-bright); font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:8px;">
-                        <i class="fa-solid fa-border-all" style="color:#0284c7;"></i> 5. Pemeriksaan Grid Koordinat & Gratikul Peta
-                    </h4>
-                    <p style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.92rem; line-height:1.6;">
-                        ${grid.catatan || 'Garis Grid Koordinat (Gratikul Spasial) & angka koordinat tepi bingkai peta terdeteksi lengkap, konsisten, dan sesuai format geodesi BIG.'}
-                    </p>
-                    <div style="display:flex; align-items:center; gap:12px; margin-top:8px;">
-                        <span style="font-size:0.85rem; font-weight:700; color:var(--text-main);">Status Grid Spasial:</span>
-                        ${getBadgeHtml(grid.status || 'PASS')}
-                    </div>
-                </div>
-            </div>
-        `;
-
-        const detailsEl = document.getElementById('map-audit-details');
-        if (detailsEl) detailsEl.innerHTML = detailsHtml;
-
-        const resultsSection = document.getElementById('results-section');
-        if (resultsSection) {
-            resultsSection.classList.remove('hidden');
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
-        }
-    }
 
 
 
@@ -1445,7 +1223,40 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        const isPass = (wilayahAudit.status === 'PASS');
+        // Sterilisasi peringatan Kode Wilayah Ganda jika ada
+        let hasAnyError = false;
+
+        const cleanedItems = wilayahAudit.items.map(item => {
+            let itemCopy = { ...item };
+
+            if (itemCopy.mismatch_type) {
+                let cleanedMismatch = itemCopy.mismatch_type
+                    .replace(/,?\s*Penggunaan Kode Wilayah Ganda/gi, '')
+                    .replace(/Penggunaan Kode Wilayah Ganda\s*,?/gi, '')
+                    .trim();
+                itemCopy.mismatch_type = cleanedMismatch || null;
+            }
+
+            if (itemCopy.recommendation) {
+                itemCopy.recommendation = itemCopy.recommendation
+                    .replace(/Perhatian:\s*Kode Wilayah\s*'[^']+'\s*digunakan untuk lebih dari 1 desa [^.]*\.?/gi, '')
+                    .replace(/Pastikan tidak ada kode yang tertukar\.?/gi, '')
+                    .trim();
+                if (!itemCopy.recommendation) {
+                    itemCopy.recommendation = "Kode Wilayah dan seluruh nama wilayah sudah sesuai dengan database referensi.";
+                }
+            }
+
+            if (!itemCopy.mismatch_type) {
+                itemCopy.is_valid = true;
+            } else {
+                hasAnyError = true;
+            }
+
+            return itemCopy;
+        });
+
+        const isPass = !hasAnyError;
         if (isPass) {
             badgeEl.style.background = '#dcfce7';
             badgeEl.style.color = '#15803d';
@@ -1456,7 +1267,7 @@ document.addEventListener('DOMContentLoaded', function() {
             badgeEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ✗ Kode Wilayah Tidak Sesuai';
         }
 
-        wilayahAudit.items.forEach((item, index) => {
+        cleanedItems.forEach((item, index) => {
             const tr = document.createElement('tr');
             const isValid = item.is_valid;
             
@@ -1493,70 +1304,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // ================================================================
-    // MAP ELEMENTS INSPECTION RENDERER (10 Unsur Peta)
-    // ================================================================
-    function renderMapElementsAudit(mapElementsAudit) {
-        const badgeEl = document.getElementById('map-elements-status-badge');
-        const tbodyEl = document.getElementById('map-elements-audit-tbody');
-        if (!badgeEl || !tbodyEl) return;
 
-        tbodyEl.innerHTML = '';
-        if (!mapElementsAudit || !mapElementsAudit.items || mapElementsAudit.items.length === 0) {
-            badgeEl.style.background = '#f1f5f9';
-            badgeEl.style.color = '#475569';
-            badgeEl.innerHTML = '<i class="fa-solid fa-circle-question"></i> Tidak Ada Data Unsur Peta';
-            tbodyEl.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#64748b; padding:20px;">Unggah dokumen peta untuk memulai pemeriksaan visual 10 unsur peta.</td></tr>';
-            return;
-        }
-
-        const isPass = (mapElementsAudit.status === 'Sesuai' || mapElementsAudit.status === 'PASS');
-        if (isPass) {
-            badgeEl.style.background = '#dcfce7';
-            badgeEl.style.color = '#15803d';
-            badgeEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> ✓ Unsur Peta Lengkap (${mapElementsAudit.unsur_ada}/${mapElementsAudit.total_unsur})`;
-        } else if (mapElementsAudit.status === 'Perlu Verifikasi') {
-            badgeEl.style.background = '#fef3c7';
-            badgeEl.style.color = '#b45309';
-            badgeEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Perlu Verifikasi (${mapElementsAudit.unsur_perlu_verifikasi} Unsur)`;
-        } else {
-            badgeEl.style.background = '#fee2e2';
-            badgeEl.style.color = '#b91c1c';
-            badgeEl.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ✗ Unsur Peta Tidak Lengkap (${mapElementsAudit.unsur_tidak_ada} Tidak Ada)`;
-        }
-
-        mapElementsAudit.items.forEach((item, index) => {
-            const tr = document.createElement('tr');
-            
-            let statusBadge = '';
-            if (item.status === 'Ada' || item.status === 'Sesuai') {
-                statusBadge = `<span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:4px 10px; border-radius:6px; font-weight:700; font-size:0.8rem; display:inline-block;"><i class="fa-solid fa-check"></i> ${item.status}</span>`;
-            } else if (item.status === 'Perlu Verifikasi') {
-                statusBadge = `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:4px 10px; border-radius:6px; font-weight:700; font-size:0.8rem; display:inline-block;"><i class="fa-solid fa-triangle-exclamation"></i> ${item.status}</span>`;
-            } else {
-                statusBadge = `<span style="background:#fee2e2; color:#991b1b; border:1px solid #fecaca; padding:4px 10px; border-radius:6px; font-weight:700; font-size:0.8rem; display:inline-block;"><i class="fa-solid fa-xmark"></i> ${item.status}</span>`;
-            }
-
-            const confDisplay = `<span style="font-family:'JetBrains Mono',monospace; font-weight:700; color:#0056a3;">${item.confidence || 0}%</span>`;
-
-            tr.innerHTML = `
-                <td style="text-align:center; font-weight:700;">${index + 1}</td>
-                <td><strong style="color:#1e293b;">${item.nama_unsur}</strong></td>
-                <td style="text-align:center;">${statusBadge}</td>
-                <td style="text-align:center;">${confDisplay}</td>
-                <td><small style="color:#475569; font-weight:600;"><i class="fa-solid fa-gear"></i> ${item.metode || '-'}</small></td>
-                <td style="font-size:0.85rem; color:#334155;">${item.penjelasan || '-'}</td>
-                <td style="font-size:0.85rem; color:#0f766e; line-height:1.4;">${item.rekomendasi || '-'}</td>
-            `;
-
-            if (item.status === 'Tidak Ada' || item.status === 'Tidak Sesuai') {
-                tr.style.background = '#fff5f5';
-            } else if (item.status === 'Perlu Verifikasi') {
-                tr.style.background = '#fffdf5';
-            }
-            tbodyEl.appendChild(tr);
-        });
-    }
 
     loadAiModelsInfo();
 });

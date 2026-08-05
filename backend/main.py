@@ -16,8 +16,8 @@ logger = logging.getLogger("veridoc_api")
 
 app = FastAPI(
     title="Veridoc - Sistem Periksa & Audit Dokumen SKVT BIG",
-    description="API Veridoc v3.5 - Audit 9 Catatan Kritis, Halaman PDF, Evaluasi RMSE Geomatika & Exporter GIS Multi-Format",
-    version="3.5.0"
+    description="API Veridoc v5.5 - Audit 9 Catatan Kritis, Halaman PDF, Evaluasi RMSE Geomatika & Exporter GIS Multi-Format",
+    version="5.5.0"
 )
 
 app.add_middleware(
@@ -195,62 +195,6 @@ async def export_kml(payload: Dict[str, Any]):
         media_type="application/vnd.google-earth.kml+xml",
         headers={"Content-Disposition": "attachment; filename=Veridoc_Audited_Points.kml"}
     )
-
-@app.post("/api/audit-map")
-async def audit_map(file: UploadFile = File(...)):
-    """
-    Inspeksi Pembacaan Peta SKVT (Vision AI):
-    - 1. Bisa Baca Peta (keterbacaan & kelengkapan layout)
-    - 2. Periksa Typo di Peta (judul, legenda, nama wilayah)
-    - 3. Kesesuaian Koordinat TK Legenda vs Peta Utama
-    - 4. Keterangan Titik TK Bertumpuk / Tidak Terbaca
-    """
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Nama file peta tidak terdeteksi.")
-        
-    logger.info(f"Memproses audit Pembacaan Peta: {file.filename}")
-    content = await file.read()
-    fn_lower = file.filename.lower()
-    
-    try:
-        from vision_legend_audit import periksa_peta_skvt, rasterize_pdf_page_to_pil
-        
-        pdf_text = ""
-        map_img = None
-        if fn_lower.endswith('.pdf'):
-            import pdfplumber
-            try:
-                with pdfplumber.open(io.BytesIO(content)) as pdf:
-                    for p in pdf.pages:
-                        pdf_text += " " + (p.extract_text() or "")
-            except Exception as pe:
-                print(f"[PDF Text] Warning: {pe}")
-
-            map_img = rasterize_pdf_page_to_pil(content, page_number=3, dpi=300)
-            if not map_img:
-                map_img = rasterize_pdf_page_to_pil(content, page_number=1, dpi=300)
-        else:
-            from PIL import Image
-            import io
-            map_img = Image.open(io.BytesIO(content))
-            
-        if not map_img:
-            raise HTTPException(status_code=400, detail="Tidak dapat mengonversi file menjadi gambar peta.")
-            
-        result = periksa_peta_skvt(map_img, model_name="gemini-2.0-flash", pdf_text=pdf_text)
-        result["filename"] = file.filename
-        
-        raw_name = os.path.splitext(file.filename)[0].replace('_', ' ').replace('-', ' ')
-        clean_name = re.sub(r'^(peta|skvt|laporan|audit|veridoc)\s+', '', raw_name, flags=re.IGNORECASE).strip()
-        result["region"] = result.get("region") or clean_name or "Peta Lampiran SKVT BIG"
-        
-        return JSONResponse(content=result)
-    except Exception as e:
-
-
-        logger.error(f"Error audit_map: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Gagal memproses pembacaan peta: {str(e)}")
-
 
 @app.post("/api/audit/batch")
 async def audit_pdf_batch(

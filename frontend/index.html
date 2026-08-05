@@ -50,15 +50,7 @@
         <!-- Upload Section -->
         <section class="upload-section" id="upload-section">
             <div class="card upload-card glass-card">
-                <!-- Mode Selector -->
-                <div class="mode-tabs">
-                    <button type="button" id="btn-mode-pdf" class="mode-tab active">
-                        <i class="fa-solid fa-file-pdf"></i> Audit Dokumen PDF
-                    </button>
-                    <button type="button" id="btn-mode-map" class="mode-tab">
-                        <i class="fa-solid fa-map-location-dot"></i> Pembacaan Peta
-                    </button>
-                </div>
+
 
                 <!-- Dropzone -->
                 <div class="dropzone" id="drop-zone">
@@ -70,7 +62,6 @@
                     <p id="upload-desc-element">Pilih atau seret satu atau beberapa file PDF sekaligus</p>
                     
                     <input type="file" id="file-input" accept=".pdf" multiple hidden>
-                    <input type="file" id="map-audit-input" accept=".pdf,.png,.jpg,.jpeg" hidden>
                     
                     <div class="dropzone-buttons">
                         <button type="button" class="btn btn-browse" id="btn-browse-action">
@@ -196,34 +187,9 @@
                 </div>
             </div>
 
-            <!-- Map Inspection Result Container -->
-            <!-- Hasil Pembacaan Peta (Gemini Vision AI) -->
-            <div id="map-result-container" class="card result-card hidden">
-                <div class="card-header">
-                    <h3><i class="fa-solid fa-wand-magic-sparkles" style="color:#0056a3;"></i> Hasil Pembacaan & Audit Visual Peta (Gemini Vision AI)</h3>
-                </div>
-                <div class="grid-4col margin-top-sm">
-                    <div class="box-stat">
-                        <span>🗺️ Keterbacaan Peta</span>
-                        <h4 id="map-stat-baca">-</h4>
-                    </div>
-                    <div class="box-stat">
-                        <span>✍️ Pemeriksaan Typo</span>
-                        <h4 id="map-stat-typo">-</h4>
-                    </div>
-                    <div class="box-stat">
-                        <span>📍 Koordinat Legenda vs Peta</span>
-                        <h4 id="map-stat-coord">-</h4>
-                    </div>
-                    <div class="box-stat">
-                        <span>🏷️ Teks TK Bertumpuk</span>
-                        <h4 id="map-stat-overlap">-</h4>
-                    </div>
-                </div>
-                <div class="box-details margin-top-sm" id="map-audit-details">
-                    <!-- Dynamic Map Audit Details will be inserted here -->
-                </div>
-            </div>
+
+
+
 
 
             <!-- Single PDF Audit Tabs -->
@@ -546,6 +512,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="script.js?v=5.0.0"></script>
+    <script src="script.js"></script>
 </body>
 </html>
