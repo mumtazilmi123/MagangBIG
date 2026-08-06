@@ -422,52 +422,31 @@ body {
   gap: 4px;
   flex-wrap: wrap;
 }
-.zoom-badge {
-  font-family: 'JetBrains Mono', monospace;
+.pdf-tag-badge {
   font-size: 0.73rem;
   font-weight: 700;
-  color: var(--primary);
-  background: var(--primary-light);
-  border: 1px solid rgba(0, 86, 163, 0.2);
-  padding: 3px 8px;
+  color: #DC2626;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  padding: 4px 10px;
   border-radius: 12px;
-  margin-right: 4px;
 }
-.ctrl-btn {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-light);
-  color: var(--text-sub);
-  width: 30px;
-  height: 30px;
-  border-radius: var(--r-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-size: 0.8rem;
-}
-.ctrl-btn:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
 
 .viewer-body {
   flex: 1;
-  background: #334155;
+  background: #1E293B;
   position: relative;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
-  cursor: grab;
-  user-select: none;
-}
-.viewer-body:active {
-  cursor: grabbing;
+  padding: 0;
 }
 
 .viewer-placeholder {
   text-align: center;
   color: #94A3B8;
+  padding: 20px;
 }
 .viewer-placeholder i { font-size: 2.8rem; margin-bottom: 8px; }
 

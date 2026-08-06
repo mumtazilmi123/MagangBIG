@@ -265,21 +265,11 @@ function clearFile() {
 }
 
 function setupDocumentViewer(file, blobUrl) {
-    const ext = file.name.split('.').pop().toLowerCase();
-
     if (viewerPlaceholder) viewerPlaceholder.classList.add('hidden');
-    docPreviewIframe.classList.add('hidden');
-    docPreviewImg.classList.add('hidden');
-
-    if (ext === 'pdf') {
-        docPreviewIframe.src = blobUrl;
+    if (docPreviewIframe) {
+        docPreviewIframe.src = `${blobUrl}#toolbar=1&navpanes=0&view=FitH`;
         docPreviewIframe.classList.remove('hidden');
-    } else {
-        docPreviewImg.src = blobUrl;
-        docPreviewImg.classList.remove('hidden');
     }
-    currentZoom = 1.0;
-    applyZoom();
 }
 
 function applyZoom() {

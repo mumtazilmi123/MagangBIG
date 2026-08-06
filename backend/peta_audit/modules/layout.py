@@ -149,53 +149,12 @@ def find_inset_region(image_cv: np.ndarray, boxes: List[Dict]) -> Optional[Dict]
 
 def analyze_grid_presence(image_cv: np.ndarray) -> Dict[str, Any]:
     """
-    Deteksi keberadaan grid koordinat pada peta menggunakan analisis garis Hough.
-    Mengembalikan:
-    - has_grid: bool
-    - confidence: float (0.0-1.0)
-    - h_lines: jumlah garis horizontal terdeteksi
-    - v_lines: jumlah garis vertikal terdeteksi
+    Deteksi keberadaan grid koordinat pada peta menggunakan analisis garis Hough & perpotongan.
+    Delegasi ke modul vision.analyze_grid_presence.
     """
     try:
-        import cv2
-        h, w = _get_image_dimensions(image_cv)
-
-        gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
-        edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-
-        # Hough Line Transform
-        lines = cv2.HoughLinesP(
-            edges,
-            rho=1,
-            theta=np.pi / 180,
-            threshold=int(min(w, h) * 0.3),  # Threshold adaptif
-            minLineLength=int(min(w, h) * 0.25),
-            maxLineGap=int(min(w, h) * 0.05)
-        )
-
-        h_count = 0
-        v_count = 0
-
-        if lines is not None:
-            for line in lines:
-                x1, y1, x2, y2 = line[0]
-                angle = abs(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
-                if angle < 10 or angle > 170:
-                    h_count += 1
-                elif 80 < angle < 100:
-                    v_count += 1
-
-        has_grid = h_count >= 2 and v_count >= 2
-        confidence = min(1.0, (min(h_count, v_count) / 3) * 0.8 + 0.1) if has_grid else 0.2
-
-        logger.info(f"analyze_grid_presence: H={h_count}, V={v_count}, has_grid={has_grid}")
-        return {
-            "has_grid": has_grid,
-            "confidence": round(confidence, 2),
-            "h_lines": h_count,
-            "v_lines": v_count
-        }
-
+        from peta_audit.modules.vision import analyze_grid_presence as v_grid
+        return v_grid(image_cv)
     except Exception as e:
         logger.warning(f"analyze_grid_presence gagal: {e}")
-        return {"has_grid": False, "confidence": 0.0, "h_lines": 0, "v_lines": 0}
+        return {"has_grid": False, "confidence": 0.0, "h_lines": 0, "v_lines": 0, "evidence": str(e)}

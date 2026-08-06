@@ -47,12 +47,11 @@ COMPONENT_NAMES = {
     "sumber_data":            "Sumber Data",
     "titik_kartometrik":      "Daftar Titik Kartometrik",
     "batas_administrasi":     "Batas Administrasi",
-    "logo_instansi":          "Logo Instansi (opsional)",
     "informasi_penerbit":     "Informasi Penerbit",
 }
 
 # Komponen yang bersifat opsional (tidak mempengaruhi status LAYAK)
-OPTIONAL_COMPONENTS = {"logo_instansi"}
+OPTIONAL_COMPONENTS = set()
 
 # Urutan tampilan di dashboard
 DISPLAY_ORDER = [
@@ -74,7 +73,6 @@ DISPLAY_ORDER = [
     "sumber_data",
     "titik_kartometrik",
     "batas_administrasi",
-    "logo_instansi",
     "informasi_penerbit",
 ]
 

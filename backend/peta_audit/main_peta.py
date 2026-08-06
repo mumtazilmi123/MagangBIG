@@ -32,7 +32,6 @@ from peta_audit.modules.vision import (
     detect_north_arrow,
     detect_scale_bar,
     detect_inset_map,
-    detect_logo,
     detect_boundary_lines,
     detect_legend_visually
 )
@@ -55,7 +54,6 @@ from peta_audit.modules.validator import (
     check_sumber_data,
     check_titik_kartometrik,
     check_batas_administrasi,
-    check_logo_instansi,
     check_informasi_penerbit,
 )
 from peta_audit.modules.table_reader import extract_titik_kartometrik
@@ -71,7 +69,7 @@ logger = logging.getLogger("peta_audit_api")
 app = FastAPI(
     title="Audit Peta Batas Desa — Template BIG",
     description="API Audit komponen wajib Peta Batas Desa sesuai Template BIG. "
-                "Mendukung file PDF, JPG, JPEG, PNG, TIFF.",
+                "Mendukung file PDF (.pdf).",
     version="1.0.0"
 )
 
@@ -87,7 +85,7 @@ app.add_middleware(
 # Batas ukuran file
 # ─────────────────────────────────────────────────
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
-ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".tiff", ".tif"}
+ALLOWED_EXTENSIONS = {".pdf"}
 
 
 def _validate_file(file: UploadFile) -> None:
@@ -95,7 +93,7 @@ def _validate_file(file: UploadFile) -> None:
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Format file tidak didukung: '{ext}'. Format yang diterima: PDF, JPG, JPEG, PNG, TIFF."
+            detail=f"Format file tidak didukung: '{ext}'. Hanya berkas format PDF (.pdf) yang diterima."
         )
 
 
@@ -151,16 +149,15 @@ def run_audit_pipeline(file_bytes: bytes, filename: str) -> dict:
 
     # ── 4. Computer Vision ────────────────────────
     logger.info("Langkah 4: Computer Vision...")
-    vision_north   = detect_north_arrow(image_cv)  if has_visual else {}
-    vision_scale   = detect_scale_bar(image_cv)    if has_visual else {}
-    vision_inset   = detect_inset_map(image_cv)    if has_visual else {}
-    vision_logo    = detect_logo(image_cv)          if has_visual else {}
-    vision_boundary= detect_boundary_lines(image_cv) if has_visual else {}
-    vision_legend  = detect_legend_visually(image_cv) if has_visual else {}
+    vision_north   = detect_north_arrow(image_cv, full_text) if has_visual else {}
+    vision_scale   = detect_scale_bar(image_cv)              if has_visual else {}
+    vision_inset   = detect_inset_map(image_cv, full_text)   if has_visual else {}
+    vision_boundary= detect_boundary_lines(image_cv)         if has_visual else {}
+    vision_legend  = detect_legend_visually(image_cv)        if has_visual else {}
 
     # ── 5. Ekstraksi Titik Kartometrik ────────────
     logger.info("Langkah 5: Ekstraksi tabel titik kartometrik...")
-    titik_result = extract_titik_kartometrik(file_bytes, filename, full_text)
+    titik_result = extract_titik_kartometrik(file_bytes, filename, full_text, image_cv)
 
     # ── 6. Validasi Komponen ──────────────────────
     logger.info("Langkah 6: Validasi komponen...")
@@ -183,7 +180,6 @@ def run_audit_pipeline(file_bytes: bytes, filename: str) -> dict:
         "sumber_data":         check_sumber_data(full_text),
         "titik_kartometrik":   check_titik_kartometrik(full_text, titik_result),
         "batas_administrasi":  check_batas_administrasi(full_text, vision_boundary),
-        "logo_instansi":       check_logo_instansi(full_text, vision_logo),
         "informasi_penerbit":  check_informasi_penerbit(full_text),
     }
 

@@ -444,25 +444,6 @@ def check_batas_administrasi(text: str, vision_result: Optional[Dict] = None) ->
                         notes="Batas administrasi tidak terdeteksi. Pastikan garis batas wilayah tergambar jelas.")
 
 
-def check_logo_instansi(text: str, vision_result: Optional[Dict] = None) -> Dict[str, Any]:
-    """Komponen 15: Logo Instansi (opsional)."""
-    if vision_result and vision_result.get("detected"):
-        conf = vision_result["confidence"]
-        return _make_result("found", conf, "Computer Vision", vision_result["evidence"])
-
-    # Logo biasanya tidak menghasilkan teks OCR yang spesifik
-    # Cek nama instansi
-    instansi_kw = ["pemerintah", "kementerian", "bpn", "big", "badan", "dinas", "pemda"]
-    found, ctx = _search_keywords(text, instansi_kw)
-    if found:
-        return _make_result("uncertain", 0.35, "OCR + Rule Based",
-                            f"OCR membaca: {ctx}",
-                            notes="Nama instansi ditemukan. Logo visual tidak terdeteksi (komponen opsional).")
-
-    return _make_result("not_found", 0.10, "Computer Vision + OCR", "-",
-                        notes="Logo instansi tidak ditemukan (komponen opsional — tidak wajib).")
-
-
 def check_informasi_penerbit(text: str) -> Dict[str, Any]:
     """Komponen 16: Informasi Penerbit."""
     found, ctx = _search_keywords(text, PENERBIT_KEYWORDS)
