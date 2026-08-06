@@ -27,7 +27,7 @@ if _backend_dir not in sys.path:
 
 from peta_audit.modules.preprocessing import load_image_file
 from peta_audit.modules.ocr import extract_full_text, extract_text_regions
-from peta_audit.modules.layout import detect_regions_heuristic, detect_border_boxes, analyze_grid_presence
+from peta_audit.modules.layout import detect_regions_heuristic, detect_border_boxes
 from peta_audit.modules.vision import (
     detect_north_arrow,
     detect_scale_bar,
@@ -44,7 +44,6 @@ from peta_audit.modules.validator import (
     check_skala_angka,
     check_skala_grafis,
     check_arah_utara,
-    check_grid_koordinat,
     check_label_koordinat,
     check_sistem_proyeksi,
     check_sistem_grid,
@@ -141,11 +140,9 @@ def run_audit_pipeline(file_bytes: bytes, filename: str) -> dict:
     # ── 3. Layout Detection ───────────────────────
     logger.info("Langkah 3: Deteksi layout...")
     boxes = []
-    grid_result = {"has_grid": False, "confidence": 0.0, "h_lines": 0, "v_lines": 0}
 
     if has_visual and image_cv is not None:
         boxes = detect_border_boxes(image_cv)
-        grid_result = analyze_grid_presence(image_cv)
 
     # ── 4. Computer Vision ────────────────────────
     logger.info("Langkah 4: Computer Vision...")
@@ -170,7 +167,6 @@ def run_audit_pipeline(file_bytes: bytes, filename: str) -> dict:
         "skala_angka":         check_skala_angka(full_text),
         "skala_grafis":        check_skala_grafis(full_text, vision_scale),
         "arah_utara":          check_arah_utara(full_text, vision_north),
-        "grid_koordinat":      check_grid_koordinat(full_text, grid_result),
         "label_koordinat":     check_label_koordinat(full_text),
         "sistem_proyeksi":     check_sistem_proyeksi(full_text),
         "sistem_grid":         check_sistem_grid(full_text),

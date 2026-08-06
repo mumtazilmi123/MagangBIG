@@ -251,32 +251,6 @@ def check_arah_utara(text: str, vision_result: Optional[Dict] = None) -> Dict[st
                         notes="Simbol arah utara tidak terdeteksi. Tambahkan tanda panah utara pada peta.")
 
 
-def check_grid_koordinat(text: str, layout_result: Optional[Dict] = None) -> Dict[str, Any]:
-    """Komponen 5: Grid Koordinat."""
-    if layout_result:
-        if layout_result.get("has_grid"):
-            h_lines = layout_result.get("h_lines", 0)
-            v_lines = layout_result.get("v_lines", 0)
-            conf = layout_result.get("confidence", 0.5)
-            return _make_result("found", conf, "Computer Vision",
-                                f"Grid berhasil dideteksi: {h_lines} garis horizontal, {v_lines} garis vertikal")
-        elif layout_result.get("h_lines", 0) > 0 or layout_result.get("v_lines", 0) > 0:
-            return _make_result("uncertain", 0.35, "Computer Vision",
-                                f"Grid hanya terdeteksi sebagian (H={layout_result.get('h_lines',0)}, V={layout_result.get('v_lines',0)})",
-                                notes="Grid koordinat hanya terdeteksi sebagian. Pastikan grid menyeluruh pada seluruh area peta.")
-
-    # Fallback: cek teks grid
-    grid_patterns = [r'\bgrid\b', r'graticule', r'jaring', r'koordinat grid']
-    found, ctx = _search_keywords(text, grid_patterns)
-    if found:
-        return _make_result("uncertain", 0.40, "OCR + Rule Based",
-                            f"OCR membaca: {ctx}",
-                            notes="Kata 'grid' ditemukan, namun keberadaan visual grid perlu dikonfirmasi.")
-
-    return _make_result("not_found", 0.10, "Computer Vision + OCR", "-",
-                        notes="Grid koordinat tidak terdeteksi. Tambahkan grid pada body peta.")
-
-
 def check_label_koordinat(text: str) -> Dict[str, Any]:
     """Komponen 6: Label Koordinat (nilai koordinat pada tepi peta)."""
     # Cari pola koordinat: derajat-menit-detik atau desimal

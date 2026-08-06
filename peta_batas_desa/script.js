@@ -396,10 +396,6 @@ function renderInspectionWorkspace(data) {
     setText('topbar-filename', data.filename || selectedFile?.name || '-');
     setText('topbar-timestamp', formatTimestamp(data.audit_timestamp));
 
-    // Show print button
-    const btnPrint = document.getElementById('btn-print-report');
-    if (btnPrint) btnPrint.style.display = 'inline-flex';
-
     // Verification Stamp Card
     renderStampCard(data);
 
@@ -622,3 +618,27 @@ function hideError() {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ================================================================
+// EXPORT PDF REPORT (html2pdf.js)
+// ================================================================
+function formatTimestamp(ts) {
+    if (!ts) {
+        return new Date().toLocaleString('id-ID', {
+            dateStyle: 'long',
+            timeStyle: 'medium'
+        });
+    }
+    try {
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return ts;
+        return d.toLocaleString('id-ID', {
+            dateStyle: 'long',
+            timeStyle: 'medium'
+        });
+    } catch (e) {
+        return ts;
+    }
+}
+
+

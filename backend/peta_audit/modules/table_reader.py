@@ -40,31 +40,37 @@ logger = logging.getLogger("peta_audit.table_reader")
 # TAHAP 7: IDENTIFIKASI JENIS DATA (TOKEN DATA CLASSIFIER)
 # ═════════════════════════════════════════════════════════════════════════════
 
-# Regex khusus untuk Kode Titik Kartometrik: TK.35.29.16.2002-19.2009-000, TK-001, TK001, TK.001
-RE_KODE_TK = re.compile(r'\b(TK[\.\-_]?[A-Za-z0-9\.\-_]{1,60})\b', re.IGNORECASE)
-RE_KODE_ALT = re.compile(r'\b([A-Za-z]{1,4}[\.\-_]?[A-Za-z0-9\.\-_]{1,30})\b')
+# Regex khusus untuk Kode Titik Kartometrik: TK.35.29.16.2002-19.2009-000, TK-001, TK001, TK.001, TK 35.29...
+RE_KODE_TK = re.compile(r'\b(TK[\.\ \-_]?[A-Za-z0-9\.\-_ ]{1,70})\b', re.IGNORECASE)
+# RE_KODE_ALT: hanya cocok jika ada separator (titik/strip) dan minimal 3 karakter setelahnya
+# Ini mencegah false positive seperti "Jl", "Ds", dll.
+RE_KODE_ALT = re.compile(r'\b([A-Za-z]{1,4}[\.\-_][A-Za-z0-9\.\-_]{3,30})\b')
 
 RE_EXCLUDE_WORDS = re.compile(
-    r'^(PETA|BATAS|DESA|KELURAHAN|KECAMATAN|KABUPATEN|PROVINSI|DAFTAR|TITIK|KARTOMETRIK|KOORDINAT|LEGENDA|LAMPIRAN|SKALA|DATUM|PROYEKSI|SISTEM|GRID|UTM|NO|X|Y|LS|LU|BT|BB|DIBUAT|DITANDATANGANI)$',
+    r'^(PETA|BATAS|DESA|KELURAHAN|KECAMATAN|KABUPATEN|PROVINSI|DAFTAR|TITIK|KARTOMETRIK|KOORDINAT|LEGENDA|LAMPIRAN|SKALA|DATUM|PROYEKSI|SISTEM|GRID|UTM|NO|X|Y|LS|LU|BT|BB|DIBUAT|DITANDATANGANI|JL|JALAN|DSN|DUSUN|RT|RW|RK|GANG|GG|BLOK|BLK|NAMA|WILAYAH|BARAT|TIMUR|SELATAN|UTARA|TENGAH|DMS|DM|DD|DS|KP|KEC|KAB|PROV|KOTA)$',
     re.IGNORECASE
 )
 
-# Regex Lintang (Wajib ada LS atau LU)
+# Regex Lintang (Wajib ada LS atau LU atau S/N suffix) - mendukung berbagai format DMS
 RE_LINTANG = re.compile(
-    r'(\d{1,2}\s*[\u00b0°0oO\*\s]\s*\d{1,2}\s*[\'\u2032`\s]\s*\d{1,2}(?:[\.,]\d+)?\s*[\"\u2033\'`\s]{0,2}\s*(?:LS|LU))\b',
+    r'(\d{1,2}\s*[\u00b0°0oO\*\s]\s*\d{1,2}\s*[\'\u2032`\s]\s*\d{1,2}(?:[\.,]\d+)?\s*[\"\u2033\'`\s]{0,2}\s*(?:LS|LU|S|N))\b',
     re.IGNORECASE
 )
 RE_LINTANG_SIMPLE = re.compile(r'(\d{1,2}(?:[\.,]\d+)?\s*[\u00b0°]?\s*(?:LS|LU))\b', re.IGNORECASE)
 
-# Regex Bujur (Wajib ada BT atau BB)
+# Regex Bujur (Wajib ada BT atau BB atau E/W suffix)
 RE_BUJUR = re.compile(
-    r'(\d{1,3}\s*[\u00b0°0oO\*\s]\s*\d{1,2}\s*[\'\u2032`\s]\s*\d{1,2}(?:[\.,]\d+)?\s*[\"\u2033\'`\s]{0,2}\s*(?:BT|BB))\b',
+    r'(\d{1,3}\s*[\u00b0°0oO\*\s]\s*\d{1,2}\s*[\'\u2032`\s]\s*\d{1,2}(?:[\.,]\d+)?\s*[\"\u2033\'`\s]{0,2}\s*(?:BT|BB|E|W))\b',
     re.IGNORECASE
 )
 RE_BUJUR_SIMPLE = re.compile(r'(\d{1,3}(?:[\.,]\d+)?\s*[\u00b0°]?\s*(?:BT|BB))\b', re.IGNORECASE)
 
-# Regex UTM Desimal (X dan Y)
+# Regex UTM Desimal (X dan Y) - 5-7 digit dengan opsional desimal (mendukung koma sebagai pemisah desimal)
 RE_UTM_NUM = re.compile(r'\b(\d{5,7}(?:[\.,]\d{1,4})?)\b')
+
+# Regex untuk mendeteksi apakah sel mengandung nilai kode TK yang valid
+# Mendukung format: TK.xxx, TK-xxx, TK xxx (dengan spasi)
+RE_VALID_TK_KODE = re.compile(r'\bTK[\.\ \-_]', re.IGNORECASE)
 
 
 def classify_data_tokens_in_text(text: str) -> List[Tuple[str, str]]:
@@ -85,8 +91,9 @@ def classify_data_tokens_in_text(text: str) -> List[Tuple[str, str]]:
         if not line_str:
             continue
 
-        # Skip header baris judul
-        if re.search(r'^(DAFTAR TITIK KARTOMETRIK|NO|TITIK KARTOMETRIK|LINTANG|BUJUR|X\(M\)|Y\(M\)|KODE TITIK)', line_str, re.IGNORECASE):
+        # Skip header baris judul (hanya jika baris tersebut adalah murni baris header, bukan baris data dengan NO)
+        if re.search(r'^\s*(DAFTAR|NO|NO\.|NOMOR|TITIK KARTOMETRIK|LINTANG|BUJUR|X\(M\)|Y\(M\)|KODE TITIK|NOMOR TITIK)\s*$', line_str, re.IGNORECASE) or \
+           (re.search(r'\b(LINTANG|BUJUR|KODE TITIK|TITIK BATAS|NOMOR TITIK)\b', line_str, re.IGNORECASE) and not RE_UTM_NUM.search(line_str) and not RE_LINTANG.search(line_str)):
             continue
 
         # 1. Cari Lintang (LS/LU)
@@ -430,34 +437,227 @@ def extract_table_cells_6a(crop_img: np.ndarray) -> str:
 # ENTRY POINT UTAMA EKSTRAKSI TABEL TITIK KARTOMETRIK
 # ═════════════════════════════════════════════════════════════════════════════
 
+def _extract_structured_table_from_page(page) -> List[Dict]:
+    """
+    Ekstraksi terstruktur dari satu halaman pdfplumber menggunakan deteksi header kolom.
+    Mendukung tabel DENGAN maupun TANPA kolom NO / No. / Nomor.
+    Mencari kolom: NO, KODE TITIK, LINTANG, BUJUR, X, Y secara otomatis dari baris header.
+    """
+    rows_out: List[Dict] = []
+
+    try:
+        tables = page.extract_tables()
+    except Exception as e:
+        logger.warning(f"extract_tables gagal: {e}")
+        return rows_out
+
+    for tbl in tables:
+        if not tbl or len(tbl) < 2:
+            continue
+
+        # ── Deteksi baris header kolom (cari di 8 baris pertama) ──
+        col_no = col_kode = col_lintang = col_bujur = col_x = col_y = -1
+        header_row_idx = -1
+
+        for ri, row in enumerate(tbl[:8]):
+            if not row:
+                continue
+
+            tmp_no = tmp_kode = tmp_lat = tmp_lon = tmp_x = tmp_y = -1
+
+            for ci, cell in enumerate(row):
+                cell_u = str(cell or "").upper().strip().replace("\n", " ")
+                if not cell_u:
+                    continue
+
+                # 1. Kolom Nomor Urut (NO / NO. / NOMOR / NUM / NO URUT)
+                if re.search(r'^\s*(NO|NO\.|NOMOR|NUM|NUMBER|NO\s*URUT|NO\.URUT)\s*$', cell_u):
+                    if tmp_no == -1:
+                        tmp_no = ci
+                    continue
+
+                # 2. Kolom Lintang (LINTANG / LATITUDE / LAT)
+                if re.search(r'\b(LINTANG|LATITUDE|LAT)\b', cell_u):
+                    if tmp_lat == -1:
+                        tmp_lat = ci
+                    continue
+
+                # 3. Kolom Bujur (BUJUR / LONGITUDE / LON)
+                if re.search(r'\b(BUJUR|LONGITUDE|LON)\b', cell_u):
+                    if tmp_lon == -1:
+                        tmp_lon = ci
+                    continue
+
+                # 4. Kolom X (UTM X / X UTM / X (UTM) / X (M) / EASTING / X)
+                if re.search(r'\b(UTM\s*X|X\s*UTM|EASTING)\b|\bX\b', cell_u):
+                    if tmp_x == -1:
+                        tmp_x = ci
+                    continue
+
+                # 5. Kolom Y (UTM Y / Y UTM / Y (UTM) / Y (M) / NORTHING / Y)
+                if re.search(r'\b(UTM\s*Y|Y\s*UTM|NORTHING)\b|\bY\b', cell_u):
+                    if tmp_y == -1:
+                        tmp_y = ci
+                    continue
+
+                # 6. Kolom Kode / Identifikasi Titik Kartometrik
+                if any(kw in cell_u for kw in ["KODE", "TITIK", "IDENTIFIKASI", "ID TITIK", "NAMA TITIK", "VERTEKS", "POINT"]):
+                    if tmp_kode == -1:
+                        tmp_kode = ci
+                    continue
+
+            # Fallback untuk tmp_kode: jika belum terdeteksi dari kata kunci,
+            # pilih kolom pertama yang belum terpakai oleh no, lat, lon, x, y
+            if tmp_kode == -1:
+                assigned = {c for c in [tmp_no, tmp_lat, tmp_lon, tmp_x, tmp_y] if c >= 0}
+                for ci in range(len(row)):
+                    if ci not in assigned:
+                        tmp_kode = ci
+                        break
+
+            # Validasi baris header: minimal terdeteksi 2 kolom koordinat / kode
+            n_signals = sum(1 for c in [tmp_kode, tmp_lat, tmp_lon, tmp_x, tmp_y] if c >= 0)
+            if n_signals >= 2:
+                header_row_idx = ri
+                col_no, col_kode, col_lintang, col_bujur, col_x, col_y = tmp_no, tmp_kode, tmp_lat, tmp_lon, tmp_x, tmp_y
+                logger.info(
+                    f"Header kolom terdeteksi di baris {ri}: "
+                    f"no={col_no}, kode={col_kode}, lat={col_lintang}, lon={col_bujur}, x={col_x}, y={col_y}"
+                )
+                break
+
+        if header_row_idx < 0:
+            logger.debug("Header kolom tidak ditemukan di tabel ini, skip.")
+            continue
+
+        # ── Ekstraksi baris data setelah header ──
+        for ri, row in enumerate(tbl[header_row_idx + 1:], 1):
+            if not row:
+                continue
+
+            def _cell(idx: int) -> str:
+                if 0 <= idx < len(row):
+                    v = str(row[idx] or "").strip().replace("\n", " ")
+                    return "" if v in ("-", "None", "none", "N/A") else v
+                return ""
+
+            no_val = _cell(col_no) if col_no >= 0 else str(ri)
+            kode = _cell(col_kode) if col_kode >= 0 else ""
+            lintang = _cell(col_lintang) if col_lintang >= 0 else ""
+            bujur = _cell(col_bujur) if col_bujur >= 0 else ""
+            x = _cell(col_x) if col_x >= 0 else ""
+            y = _cell(col_y) if col_y >= 0 else ""
+
+            # Jika kode kosong tapi no_val ada dan koordinat tersedia, buat kode dari no_val
+            if not kode and no_val:
+                kode = f"TK-{no_val}"
+
+            # Baris dinyatakan valid jika ada kode (atau no_val) DAN minimal satu nilai koordinat
+            has_coords = bool(lintang or bujur or x or y)
+            if not (kode or no_val) or not has_coords:
+                continue
+
+            rows_out.append({
+                "no": no_val or str(ri),
+                "kode": kode,
+                "lintang": lintang,
+                "bujur": bujur,
+                "x": x,
+                "y": y,
+            })
+
+        if rows_out:
+            logger.info(f"Structured extraction dari tabel: {len(rows_out)} baris")
+            break  # Hentikan setelah tabel kartometrik ditemukan
+
+    return rows_out
+
+
+def _build_final_rows(raw_rows: List[Dict]) -> List[Dict]:
+    """Tambahkan nomor urut dan duplikasi key uppercase untuk kompatibilitas laporan."""
+    final: List[Dict] = []
+    for i, rec in enumerate(raw_rows, 1):
+        no_str = rec.get("no") or str(i)
+        final.append({
+            "no": no_str,
+            "kode": rec.get("kode", ""),
+            "lintang": rec.get("lintang", ""),
+            "bujur": rec.get("bujur", ""),
+            "x": rec.get("x", ""),
+            "y": rec.get("y", ""),
+            # Standardized uppercase keys (untuk kompatibilitas laporan)
+            "NO": no_str,
+            "TITIK KARTOMETRIK": rec.get("kode", ""),
+            "LINTANG": rec.get("lintang", ""),
+            "BUJUR": rec.get("bujur", ""),
+            "X(M)": rec.get("x", ""),
+            "Y(M)": rec.get("y", ""),
+        })
+    return final
+
+
 def _read_table_from_pdfplumber(file_bytes: bytes) -> Dict[str, Any]:
     """
-    Ekstraksi tabel dari PDF digital menggunakan pdfplumber + State Machine Parser.
+    Ekstraksi tabel dari PDF digital menggunakan pdfplumber.
+
+    Strategi 1 (Utama): Column-Aware Structured Extraction
+      - Deteksi header kolom (KODE, LINTANG, BUJUR, X, Y) pada setiap halaman
+      - Map setiap sel ke kolom yang benar
+      - Jauh lebih andal daripada penggabungan buta
+
+    Strategi 2 (Fallback): State Machine Text Parser
+      - Jalankan classify_data_tokens_in_text + parse_with_state_machine
+      - Digunakan hanya jika structured extraction gagal
     """
     try:
         import io
         import pdfplumber
 
-        raw_table_text = ""
+        raw_text_parts: List[str] = []
+        all_rows_structured: List[Dict] = []
+
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             for page in pdf.pages:
                 pg_text = page.extract_text() or ""
-                if re.search(r'(DAFTAR TITIK KARTOMETRIK|TITIK KARTOMETRIK|DAFTAR KOORDINAT|KOORDINAT TITIK)', pg_text, re.IGNORECASE):
-                    raw_table_text += pg_text + "\n"
 
-                tables = page.extract_tables()
-                for tbl in tables:
-                    for row_cells in tbl:
-                        if row_cells:
-                            raw_table_text += "  ".join([str(c) for c in row_cells if c]) + "\n"
+                # Periksa apakah halaman ini mengandung tabel kartometrik
+                is_kartometrik_page = bool(re.search(
+                    r'(DAFTAR\s+TITIK\s+KARTOMETRIK|TITIK\s+KARTOMETRIK|DAFTAR\s+KOORDINAT|KOORDINAT\s+TITIK|DAFTAR\s+KOORDINAT\s+TITIK\s+BATAS|NOMOR\s+TITIK\s+BATAS)',
+                    pg_text, re.IGNORECASE
+                ))
 
-        if raw_table_text:
+                if not is_kartometrik_page:
+                    continue
+
+                raw_text_parts.append(pg_text)
+                logger.info(f"Halaman kartometrik ditemukan ({len(pg_text)} karakter teks)")
+
+                # Strategi 1: Structured column-aware extraction
+                page_rows = _extract_structured_table_from_page(page)
+                if page_rows:
+                    all_rows_structured.extend(page_rows)
+
+        raw_table_text = "\n".join(raw_text_parts)
+
+        # ── Strategi 1 berhasil ──
+        if all_rows_structured:
+            final_rows = _build_final_rows(all_rows_structured)
+            logger.info(f"pdfplumber Structured berhasil: {len(final_rows)} baris titik kartometrik.")
+            return {
+                "rows": final_rows,
+                "raw_table_text": raw_table_text,
+                "method": "OCR + Table Reader (pdfplumber + Kolom Terstruktur)",
+                "error": None
+            }
+
+        # ── Strategi 2: Fallback State Machine ──
+        if raw_table_text.strip():
             tokens = classify_data_tokens_in_text(raw_table_text)
-            rows = parse_with_state_machine(tokens)
-            if rows:
-                logger.info(f"pdfplumber + State Machine berhasil mengekstrak {len(rows)} baris titik kartometrik.")
+            rows_sm = parse_with_state_machine(tokens)
+            if rows_sm:
+                logger.info(f"pdfplumber State Machine berhasil: {len(rows_sm)} baris titik kartometrik.")
                 return {
-                    "rows": rows,
+                    "rows": rows_sm,
                     "raw_table_text": raw_table_text,
                     "method": "OCR + Table Reader (pdfplumber + State Machine)",
                     "error": None
@@ -466,7 +666,7 @@ def _read_table_from_pdfplumber(file_bytes: bytes) -> Dict[str, Any]:
     except ImportError:
         logger.warning("pdfplumber tidak tersedia.")
     except Exception as e:
-        logger.error(f"pdfplumber error: {e}")
+        logger.error(f"pdfplumber error: {e}", exc_info=True)
 
     return {"rows": [], "raw_table_text": "", "method": "", "error": "pdfplumber gagal"}
 
