@@ -1,5 +1,5 @@
 // ================================================================
-// PEMERIKSAAN DOKUMEN PETA BATAS DESA — Document Inspection Engine
+// PEMERIKSAAN DOKUMEN PETA BATAS DESA — Dynamic Document Inspection Engine
 // ================================================================
 
 'use strict';
@@ -11,19 +11,22 @@ let currentFilter = 'all';
 let selectedFile = null;
 let currentBlobUrl = null;
 let currentZoom = 1.0;
+let isPanning = false;
+let startX = 0, startY = 0;
+let scrollLeft = 0, scrollTop = 0;
 
 // ── DOM Elements ──
 let dropZone, fileInput, browseBtn, processBtn, fileBadge, fileNameSpan,
     btnRemoveFile, errorBox, progressModal, progressBar, progressPct,
-    uploadSection, resultsSection, docPreviewIframe, docPreviewImg,
-    viewerPlaceholder, btnZoomIn, btnZoomOut, btnZoomReset, btnOpenNewTab,
-    btnReupload;
+    uploadSection, resultsSection, docPreviewIframe, docPreviewImg, imageWrapper,
+    viewerContainer, viewerPlaceholder, zoomBadge, btnZoomIn, btnZoomOut,
+    btnZoomFit, btnZoomReset, btnOpenNewTab, btnReupload;
 
 // ================================================================
 // INIT
 // ================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Bind elements
+    // Bind Elements
     dropZone          = document.getElementById('drop-zone');
     fileInput         = document.getElementById('file-input');
     browseBtn         = document.getElementById('btn-browse');
@@ -40,10 +43,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     docPreviewIframe  = document.getElementById('doc-preview-iframe');
     docPreviewImg     = document.getElementById('doc-preview-img');
+    imageWrapper      = document.getElementById('image-wrapper');
+    viewerContainer   = document.getElementById('viewer-container');
     viewerPlaceholder = document.getElementById('viewer-placeholder');
+    zoomBadge         = document.getElementById('zoom-level-badge');
 
     btnZoomIn         = document.getElementById('btn-zoom-in');
     btnZoomOut        = document.getElementById('btn-zoom-out');
+    btnZoomFit        = document.getElementById('btn-zoom-fit');
     btnZoomReset      = document.getElementById('btn-zoom-reset');
     btnOpenNewTab     = document.getElementById('btn-open-newtab');
     btnReupload      = document.getElementById('btn-reupload');
@@ -83,19 +90,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Zoom Controls
+    // Dynamic Viewer Controls
     if (btnZoomIn) {
         btnZoomIn.addEventListener('click', () => {
-            currentZoom += 0.25;
+            currentZoom = Math.min(currentZoom + 0.25, 4.0);
             applyZoom();
         });
     }
     if (btnZoomOut) {
         btnZoomOut.addEventListener('click', () => {
-            if (currentZoom > 0.5) {
-                currentZoom -= 0.25;
-                applyZoom();
+            currentZoom = Math.max(currentZoom - 0.25, 0.4);
+            applyZoom();
+        });
+    }
+    if (btnZoomFit) {
+        btnZoomFit.addEventListener('click', () => {
+            currentZoom = 1.0;
+            if (docPreviewImg && viewerContainer) {
+                const containerWidth = viewerContainer.clientWidth - 24;
+                const imgWidth = docPreviewImg.naturalWidth || containerWidth;
+                if (imgWidth > 0) {
+                    currentZoom = Math.min(containerWidth / imgWidth, 1.5);
+                }
             }
+            applyZoom();
         });
     }
     if (btnZoomReset) {
@@ -107,6 +125,58 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnOpenNewTab) {
         btnOpenNewTab.addEventListener('click', () => {
             if (currentBlobUrl) window.open(currentBlobUrl, '_blank');
+        });
+    }
+
+    // Mouse Wheel Zoom on Viewer Container
+    if (viewerContainer) {
+        viewerContainer.addEventListener('wheel', (e) => {
+            if (docPreviewImg && !docPreviewImg.classList.contains('hidden')) {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 0.15 : -0.15;
+                currentZoom = Math.min(Math.max(currentZoom + delta, 0.4), 4.0);
+                applyZoom();
+            }
+        }, { passive: false });
+
+        // Grab & Pan Drag Scroll
+        viewerContainer.addEventListener('mousedown', (e) => {
+            isPanning = true;
+            startX = e.pageX - viewerContainer.offsetLeft;
+            startY = e.pageY - viewerContainer.offsetTop;
+            scrollLeft = viewerContainer.scrollLeft;
+            scrollTop = viewerContainer.scrollTop;
+            viewerContainer.style.cursor = 'grabbing';
+        });
+
+        viewerContainer.addEventListener('mouseleave', () => {
+            isPanning = false;
+            if (viewerContainer) viewerContainer.style.cursor = 'grab';
+        });
+
+        viewerContainer.addEventListener('mouseup', () => {
+            isPanning = false;
+            if (viewerContainer) viewerContainer.style.cursor = 'grab';
+        });
+
+        viewerContainer.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            e.preventDefault();
+            const x = e.pageX - viewerContainer.offsetLeft;
+            const y = e.pageY - viewerContainer.offsetTop;
+            const walkX = (x - startX) * 1.5;
+            const walkY = (y - startY) * 1.5;
+            viewerContainer.scrollLeft = scrollLeft - walkX;
+            viewerContainer.scrollTop = scrollTop - walkY;
+        });
+    }
+
+    // Double-click on Image to Toggle 200% Zoom
+    if (docPreviewImg) {
+        docPreviewImg.addEventListener('dblclick', () => {
+            if (currentZoom === 1.0) currentZoom = 2.0;
+            else currentZoom = 1.0;
+            applyZoom();
         });
     }
 
@@ -161,9 +231,9 @@ async function checkApiHealth() {
 // ================================================================
 function handleFileSelected(file) {
     const ext = file.name.split('.').pop().toLowerCase();
-    const allowed = ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'tif'];
+    const allowed = ['pdf'];
     if (!allowed.includes(ext)) {
-        showError(`Format berkas tidak didukung: .${ext}. Gunakan PDF, JPG, PNG, atau TIFF.`);
+        showError(`Format berkas tidak didukung: .${ext}. Hanya file PDF (.pdf) yang diperbolehkan.`);
         return;
     }
     if (file.size > 50 * 1024 * 1024) {
@@ -213,7 +283,12 @@ function setupDocumentViewer(file, blobUrl) {
 }
 
 function applyZoom() {
-    if (docPreviewImg) {
+    if (zoomBadge) {
+        zoomBadge.textContent = `${Math.round(currentZoom * 100)}%`;
+    }
+    if (imageWrapper) {
+        imageWrapper.style.transform = `scale(${currentZoom})`;
+    } else if (docPreviewImg) {
         docPreviewImg.style.transform = `scale(${currentZoom})`;
     }
 }

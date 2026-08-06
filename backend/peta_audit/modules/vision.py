@@ -127,7 +127,7 @@ def detect_scale_bar(image_cv: np.ndarray) -> Dict[str, Any]:
     
     Strategi:
     - Cari pola horizontal berselang-seling hitam/putih
-    - Biasanya di bawah peta atau dekat legenda
+    - Biasanya di bawah peta atau dekat legenda 
     """
     cv2 = _safe_cv_import()
     if cv2 is None:

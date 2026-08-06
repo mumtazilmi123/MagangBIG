@@ -63,31 +63,26 @@
           <div class="sheet-icon"><i class="fa-solid fa-file-circle-plus"></i></div>
           <div>
             <h2>Pilih &amp; Unggah Dokumen Peta</h2>
-            <p>Unggah berkas Peta Batas Desa (PDF, JPG, PNG, TIFF) untuk memulai inspeksi otomatis</p>
+            <p>Unggah berkas Peta Batas Desa (Format PDF) untuk memulai inspeksi otomatis</p>
           </div>
         </div>
 
         <!-- Dropzone -->
         <div class="dropzone" id="drop-zone">
           <div class="drop-illustration">
-            <i class="fa-solid fa-file-pdf pdf-ic"></i>
-            <i class="fa-solid fa-file-image img-ic"></i>
+            <i class="fa-solid fa-file-pdf pdf-ic" style="font-size:3rem; color:#DC2626;"></i>
           </div>
-          <h3>Seret Berkas Dokumen Peta Ke Sini</h3>
-          <p>atau klik tombol di bawah untuk memilih file dari komputer Anda</p>
+          <h3>Seret Berkas Dokumen PDF Ke Sini</h3>
+          <p>atau klik tombol di bawah untuk memilih file PDF dari komputer Anda</p>
 
           <div class="allowed-formats-pills">
-            <span class="pill">PDF</span>
-            <span class="pill">JPG</span>
-            <span class="pill">JPEG</span>
-            <span class="pill">PNG</span>
-            <span class="pill">TIFF</span>
+            <span class="pill" style="background:#FEF2F2; color:#DC2626; border-color:#FCA5A5;"><i class="fa-solid fa-file-pdf"></i> Format PDF (.pdf)</span>
           </div>
 
           <button type="button" class="btn btn-primary" id="btn-browse">
-            <i class="fa-solid fa-folder-open"></i> Pilih Dokumen
+            <i class="fa-solid fa-folder-open"></i> Pilih Dokumen PDF
           </button>
-          <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif" hidden>
+          <input type="file" id="file-input" accept=".pdf" hidden>
         </div>
 
         <!-- Selected file display -->
@@ -176,25 +171,29 @@
                 <i class="fa-solid fa-eye"></i> Prinjau Dokumen Peta
               </div>
               <div class="viewer-controls">
-                <button type="button" class="ctrl-btn" id="btn-zoom-in" title="Perbesar"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
-                <button type="button" class="ctrl-btn" id="btn-zoom-out" title="Perkecil"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
-                <button type="button" class="ctrl-btn" id="btn-zoom-reset" title="Reset Zoom"><i class="fa-solid fa-rotate-left"></i></button>
+                <span class="zoom-badge" id="zoom-level-badge">100%</span>
+                <button type="button" class="ctrl-btn" id="btn-zoom-in" title="Perbesar (+)"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                <button type="button" class="ctrl-btn" id="btn-zoom-out" title="Perkecil (-)"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                <button type="button" class="ctrl-btn" id="btn-zoom-fit" title="Sesuaikan Lebar (Fit)"><i class="fa-solid fa-expand"></i></button>
+                <button type="button" class="ctrl-btn" id="btn-zoom-reset" title="Reset Zoom (100%)"><i class="fa-solid fa-rotate-left"></i></button>
                 <button type="button" class="ctrl-btn" id="btn-open-newtab" title="Buka File di Tab Baru"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
               </div>
             </div>
 
-            <div class="viewer-body" id="viewer-container">
+            <div class="viewer-body" id="viewer-container" title="Gunakan Scroll Mouse atau Klik-Geser untuk Menggeser Peta">
               <!-- Render PDF Iframe or Image Previewer -->
               <div class="viewer-placeholder" id="viewer-placeholder">
                 <i class="fa-solid fa-file-pdf"></i>
                 <p>Memuat Prinjau Dokumen...</p>
               </div>
               <iframe id="doc-preview-iframe" class="preview-frame hidden"></iframe>
-              <img id="doc-preview-img" class="preview-image hidden" alt="Prinjau Peta">
+              <div class="image-wrapper" id="image-wrapper">
+                <img id="doc-preview-img" class="preview-image hidden" alt="Prinjau Peta">
+              </div>
             </div>
 
             <div class="viewer-footer">
-              <span><i class="fa-solid fa-circle-info"></i> Gunakan tombol kontrol untuk perbesar/perkecil tampilan peta</span>
+              <span><i class="fa-solid fa-mouse-pointer"></i> Scroll mouse untuk zoom. Klik &amp; tahan geser untuk menggeser peta. Double-click untuk toggle 200%.</span>
             </div>
           </div>
         </div>
